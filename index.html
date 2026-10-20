@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔐 共享记忆库 · 加密门户</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --card: #22262f;
+    --border: #2e3440;
+    --text: #e6e9ef;
+    --muted: #8b93a3;
+    --accent: #6c9fff;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --purple: #c084fc;
+    --cyan: #22d3ee;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 24px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
+  .header h1 { font-size: 28px; font-weight:700; }
+  .header h1 span { color: var(--accent); }
+  .header .sub { color: var(--muted); font-size:14px; margin-top:4px; }
+  .header .updated { color: var(--muted); font-size:12px; margin-top:2px; }
+  .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .search-box {
+    background: var(--panel); border:1px solid var(--border); border-radius:8px;
+    padding:8px 14px; color:var(--text); font-size:14px; width:260px; outline:none;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .badge { padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; background:var(--card); border:1px solid var(--border); cursor:pointer; transition:all .2s; }
+  .badge.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:14px; margin-bottom:24px; }
+  .stat-card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; text-align:center; }
+  .stat-card .num { font-size:32px; font-weight:700; }
+  .stat-card .label { color:var(--muted); font-size:13px; margin-top:4px; }
+  .stat-card .num.blue { color:var(--accent); }
+  .stat-card .num.green { color:var(--green); }
+  .stat-card .num.yellow { color:var(--yellow); }
+  .stat-card .num.purple { color:var(--purple); }
+  .section { margin-bottom:28px; }
+  .section-title { font-size:18px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .section-title .line { flex:1; height:1px; background:var(--border); }
+  .timeline { position:relative; padding-left:24px; }
+  .timeline::before { content:''; position:absolute; left:6px; top:0; bottom:0; width:2px; background:var(--border); }
+  .conv-item {
+    position:relative; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:14px 16px; margin-bottom:12px; cursor:pointer; transition:all .2s;
+  }
+  .conv-item:hover { border-color:var(--accent); transform:translateX(2px); }
+  .conv-item::before { content:''; position:absolute; left:-24px; top:18px; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid var(--bg); }
+  .conv-item .meta { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
+  .conv-item .date { color:var(--muted); font-size:12px; }
+  .tool-tag { font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600; }
+  .tool-tag.WorkBuddy { background:rgba(108,159,255,.15); color:var(--accent); }
+  .tool-tag.Claude { background:rgba(192,132,252,.15); color:var(--purple); }
+  .tool-tag.opencode { background:rgba(34,211,238,.15); color:var(--cyan); }
+  .tool-tag.DeepSeek { background:rgba(74,222,128,.15); color:var(--green); }
+  .conv-item .title { font-size:15px; font-weight:600; }
+  .conv-item .summary { color:var(--muted); font-size:13px; margin-top:4px; }
+  .conv-item .expand { display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); font-size:13px; color:var(--text); white-space:pre-wrap; max-height:70vh; overflow:auto; }
+  .conv-item.open .expand { display:block; }
+  .decision-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px,1fr)); gap:12px; }
+  .decision-card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
+  .decision-card h4 { color:var(--accent); font-size:14px; margin-bottom:6px; }
+  .decision-card p { color:var(--muted); font-size:13px; }
+  .todo-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px,1fr)); gap:12px; }
+  .todo-card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
+  .todo-card .priority { font-size:11px; font-weight:700; padding:2px 8px; border-radius:8px; }
+  .priority.high { background:rgba(248,113,113,.15); color:var(--red); }
+  .priority.mid { background:rgba(251,191,36,.15); color:var(--yellow); }
+  .priority.low { background:rgba(139,147,163,.15); color:var(--muted); }
+  .todo-card ul { margin-top:8px; list-style:none; }
+  .todo-card li { font-size:13px; padding:4px 0; border-bottom:1px dashed var(--border); color:var(--text); }
+  .todo-card li:last-child { border-bottom:none; }
+  .empty { text-align:center; color:var(--muted); padding:40px 0; font-size:14px; }
+  .action-btn { background:var(--card); border:1px solid var(--border); color:var(--text); padding:6px 14px; border-radius:8px; cursor:pointer; font-size:13px; transition:all .2s; }
+  .action-btn:hover { border-color:var(--accent); }
+
+  /* 密码锁屏 */
+  #lockScreen {
+    position:fixed; inset:0; background:var(--bg); z-index:100;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .lock-box { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:40px; width:340px; text-align:center; }
+  .lock-box .lock-icon { font-size:48px; margin-bottom:12px; }
+  .lock-box h2 { font-size:20px; margin-bottom:8px; }
+  .lock-box p { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .lock-box input {
+    width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); font-size:15px; outline:none; margin-bottom:12px;
+  }
+  .lock-box input:focus { border-color:var(--accent); }
+  .lock-box .btn {
+    width:100%; padding:10px; border-radius:8px; border:none; background:var(--accent);
+    color:#fff; font-size:15px; font-weight:600; cursor:pointer;
+  }
+  .lock-box .btn:disabled { opacity:.5; cursor:wait; }
+  .lock-box .err { color:var(--red); font-size:13px; margin-top:10px; min-height:18px; }
+  .hint { color:var(--muted); font-size:11px; margin-top:16px; }
+
+  @media (max-width:640px) { body { padding:16px; } .search-box { width:100%; } }
+</style>
+</head>
+<body>
+
+<!-- 密码锁屏 -->
+<div id="lockScreen">
+  <div class="lock-box">
+    <div class="lock-icon">🔐</div>
+    <h2>共享记忆库</h2>
+    <p>内容已 AES-256-GCM 加密<br>请输入门户密码解密查看</p>
+    <input type="password" id="passwordInput" placeholder="门户密码" autocomplete="current-password">
+    <button class="btn" id="unlockBtn" onclick="unlock()">解锁</button>
+    <div class="err" id="lockErr"></div>
+    <div class="hint">密码在本地 记忆库门户/.portal_key 中设置</div>
+  </div>
+</div>
+
+<div class="container" id="mainContent" style="display:none;">
+  <div class="header">
+    <div>
+      <h1>🧠 <span>共享记忆库</span>总览</h1>
+      <div class="sub">所有 AI agent（Claude Code / opencode / WorkBuddy / DeepSeek）的对话中枢</div>
+      <div class="updated" id="updatedLabel">加载中...</div>
+    </div>
+    <div class="toolbar">
+      <input class="search-box" id="searchInput" type="text" placeholder="🔍 搜索对话、决策、待办...">
+      <button class="action-btn" onclick="toggleAll()">展开/折叠全部</button>
+    </div>
+  </div>
+
+  <div class="stats" id="statsRow">
+    <div class="stat-card"><div class="num blue" id="statConvs">0</div><div class="label">对话存档</div></div>
+    <div class="stat-card"><div class="num green" id="statTools">0</div><div class="label">接入的 AI 工具</div></div>
+    <div class="stat-card"><div class="num yellow" id="statDecisions">0</div><div class="label">技术决策</div></div>
+    <div class="stat-card"><div class="num purple" id="statTodos">0</div><div class="label">待办事项</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">💬 全部对话 <span class="line"></span></div>
+    <div class="toolbar" style="margin-bottom:14px;" id="filterBar"></div>
+    <div id="timeline" class="timeline"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">💡 技术决策 <span class="line"></span></div>
+    <div class="decision-grid" id="decisionGrid"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">✅ 待办与下一步 <span class="line"></span></div>
+    <div class="todo-list" id="todoList"></div>
+  </div>
+
+  <div style="text-align:center; color:var(--muted); font-size:12px; padding:20px 0 40px;">
+    数据由 generate_portal_data.py 自动生成 · 内容 AES-256-GCM 加密 · 仅本地存在明文
+  </div>
+</div>
+
+<script>
+// ========== 加密参数（与 generate_portal_data.py 一致）==========
+const PBKDF2_ITERATIONS = 310000;
+const SALT_LEN = 16, IV_LEN = 12, TAG_LEN = 16;
+
+let DATA = { conversations: [], decisions: [], todos: { high: [], mid: [], low: [] } };
+let currentFilter = 'all';
+const toolLabels = {
+  'WorkBuddy': { text: 'WorkBuddy', cls: 'WorkBuddy' },
+  'Claude Code': { text: 'Claude Code', cls: 'Claude' },
+  'opencode': { text: 'opencode', cls: 'opencode' },
+  'DeepSeek': { text: 'DeepSeek', cls: 'DeepSeek' },
+  'DeepSeek Harness': { text: 'DeepSeek Harness', cls: 'DeepSeek' },
+  'Obsidian AI': { text: 'Obsidian AI', cls: 'Claude' }
+};
+
+// ========== 解密 ==========
+async function deriveKey(password, salt) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+  );
+}
+
+async function unlock() {
+  const input = document.getElementById('passwordInput');
+  const err = document.getElementById('lockErr');
+  const btn = document.getElementById('unlockBtn');
+  const password = input.value;
+  if (!password) { err.textContent = '请输入密码'; return; }
+  btn.disabled = true; btn.textContent = '解密中...'; err.textContent = '';
+
+  try {
+    const resp = await fetch('encrypted.bin', { cache: 'no-cache' });
+    if (!resp.ok) throw new Error('无法获取加密数据文件');
+    const buf = new Uint8Array(await resp.arrayBuffer());
+    if (buf.length < SALT_LEN + IV_LEN + TAG_LEN + 1) throw new Error('数据文件格式错误');
+    const salt = buf.slice(0, SALT_LEN);
+    const iv = buf.slice(SALT_LEN, SALT_LEN + IV_LEN);
+    const tag = buf.slice(SALT_LEN + IV_LEN, SALT_LEN + IV_LEN + TAG_LEN);
+    const ct = buf.slice(SALT_LEN + IV_LEN + TAG_LEN);
+
+    const key = await deriveKey(password, salt);
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, key, concat(ct, tag));
+    DATA = JSON.parse(new TextDecoder().decode(decrypted));
+
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+    document.getElementById('updatedLabel').textContent = '📅 最近更新：' + (DATA.lastUpdated || '未知');
+    renderAll();
+  } catch (e) {
+    console.error(e);
+    err.textContent = '❌ 密码错误或数据损坏';
+  } finally {
+    btn.disabled = false; btn.textContent = '解锁';
+  }
+}
+
+function concat(a, b) {
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0); out.set(b, a.length);
+  return out;
+}
+
+document.getElementById('passwordInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+// ========== 渲染 ==========
+function renderAll() { renderStats(); renderFilterBar(); renderTimeline(); renderDecisions(); renderTodos(); }
+
+function renderStats() {
+  document.getElementById('statConvs').textContent = DATA.conversations.length;
+  const tools = new Set(DATA.conversations.map(c => c.tool));
+  document.getElementById('statTools').textContent = tools.size;
+  document.getElementById('statDecisions').textContent = DATA.decisions.length;
+  document.getElementById('statTodos').textContent =
+    (DATA.todos.high?.length || 0) + (DATA.todos.mid?.length || 0) + (DATA.todos.low?.length || 0);
+}
+
+function renderFilterBar() {
+  const bar = document.getElementById('filterBar');
+  const tools = ['all', ...new Set(DATA.conversations.map(c => c.tool))];
+  bar.innerHTML = tools.map(t => {
+    const label = t === 'all' ? '全部' : (toolLabels[t]?.text || t);
+    return `<span class="badge${t === 'all' ? ' active' : ''}" data-tool="${t}" onclick="filterByTool('${t}', this)">${label}</span>`;
+  }).join('');
+}
+
+function filterByTool(tool, el) {
+  currentFilter = tool;
+  document.querySelectorAll('#filterBar .badge').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderTimeline();
+}
+
+function renderTimeline() {
+  const tl = document.getElementById('timeline');
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const list = DATA.conversations.filter(c => {
+    const matchTool = currentFilter === 'all' || c.tool === currentFilter;
+    const matchSearch = !search || (c.title + c.summary + c.detail).toLowerCase().includes(search);
+    return matchTool && matchSearch;
+  });
+  if (!list.length) { tl.innerHTML = '<div class="empty">没有匹配的对话</div>'; return; }
+  tl.innerHTML = list.map(c => {
+    const t = toolLabels[c.tool] || { text: c.tool, cls: '' };
+    const typeBadge = c.archive_type === 'full'
+      ? '<span class="tool-tag" style="background:rgba(74,222,128,.12);color:var(--green);">完整版</span>'
+      : '<span class="tool-tag" style="background:rgba(251,191,36,.12);color:var(--yellow);">摘要版</span>';
+    return `
+      <div class="conv-item" onclick="toggleConv(this)">
+        <div class="meta">
+          <span class="date">📅 ${c.date}</span>
+          <span class="tool-tag ${t.cls}">${t.text}</span>
+          ${typeBadge}
+          <span class="tool-tag" style="background:rgba(139,147,163,.1);color:var(--muted);">${c.file}</span>
+        </div>
+        <div class="title">${c.title}</div>
+        <div class="summary">${c.summary}</div>
+        <div class="expand">${c.detail}</div>
+      </div>`;
+  }).join('');
+}
+
+function toggleConv(el) { el.classList.toggle('open'); }
+
+function toggleAll() {
+  const items = document.querySelectorAll('.conv-item');
+  const allOpen = items.length > 0 && [...items].every(i => i.classList.contains('open'));
+  items.forEach(i => i.classList.toggle('open', !allOpen));
+}
+
+function renderDecisions() {
+  document.getElementById('decisionGrid').innerHTML = DATA.decisions.map(d => `
+    <div class="decision-card"><h4>💡 ${d.title}</h4><p>${d.content}</p></div>`).join('');
+}
+
+function renderTodos() {
+  const el = document.getElementById('todoList');
+  const groups = [
+    { key: 'high', label: '高优先级', cls: 'high' },
+    { key: 'mid', label: '中优先级', cls: 'mid' },
+    { key: 'low', label: '低优先级', cls: 'low' }
+  ];
+  el.innerHTML = groups.map(g => `
+    <div class="todo-card"><span class="priority ${g.cls}">${g.label}</span>
+      <ul>${(DATA.todos[g.key] || []).map(t => `<li>☐ ${t}</li>`).join('')}</ul>
+    </div>`).join('');
+}
+
+document.getElementById('searchInput').addEventListener('input', renderTimeline);
+</script>
+</body>
+</html>

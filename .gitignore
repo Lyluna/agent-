@@ -1,0 +1,5 @@
+# 明文数据与密钥——绝不提交
+data.json
+.portal_key
+__pycache__/
+*.pyc
