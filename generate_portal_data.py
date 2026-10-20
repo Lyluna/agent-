@@ -91,9 +91,11 @@ def parse_archive(filepath):
     tool = detect_tool(meta.get("tool", ""))
     created = meta.get("created", "")[:16]
 
-    # 判断是否完整版
-    is_full = ("完整对话记录" in content) or ("完整记录" in content)
-    archive_type = "summary" if "摘要版" in content else ("full" if is_full else "summary")
+    # 判断是否完整版：优先读 frontmatter 的 archive_type 字段
+    archive_type = meta.get("archive_type", "")
+    if not archive_type:
+        is_full = ("完整对话记录" in content) or ("完整记录" in content)
+        archive_type = "full" if is_full else "summary"
 
     # 提取摘要/详情
     if archive_type == "full":
