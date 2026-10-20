@@ -3,3 +3,13 @@ data.json
 .portal_key
 __pycache__/
 *.pyc
+
+# WorkBuddy 后台产物（禁止提交）
+data.enc
+.last_sync
+memory-core.json
+generate_md_views.py
+sync_memory.py
+auto_sync.py
+scripts_generate_portal_data_legacy.py
+加密data_enc工具.bat
