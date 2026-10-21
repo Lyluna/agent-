@@ -138,10 +138,27 @@ def parse_archive(filepath):
     fname = os.path.basename(filepath).replace(".md", "")
     meta, body = parse_frontmatter(content)
 
+    # 兼容没有 frontmatter 的存档（其他 agent 生成）：从正文里找标题 / 工具 / 时间
+    body_meta = {}
+    if not meta:
+        mh = re.search(r"^#\s+(.+)$", body, re.M)
+        if mh:
+            body_meta["title"] = clean_inline(mh.group(1), 80)
+        mt = re.search(r"^-\s*工具[：:]\s*(.+)$", body, re.M)
+        if mt:
+            body_meta["tool"] = clean_inline(mt.group(1), 40)
+        md = re.search(r"^-\s*(?:时间|日期)[：:]\s*(.+)$", body, re.M)
+        if md:
+            body_meta["created"] = clean_inline(md.group(1), 40)
+        mtopic = re.search(r"^-\s*主题[：:]\s*(.+)$", body, re.M)
+        if mtopic:
+            body_meta["topic"] = clean_inline(mtopic.group(1), 80)
+    meta = {**body_meta, **meta}
+
     title = meta.get("topic") or meta.get("title") or fname
     tool = detect_tool(meta.get("tool", ""))
     created = (meta.get("created") or "").strip()
-    if not created:
+    if not re.match(r"\d{4}-\d{2}-\d{2}", created):
         created = datetime.fromtimestamp(os.path.getmtime(filepath)).strftime("%Y-%m-%d %H:%M")
     status = meta.get("status", "")
     archive_type = meta.get("archive_type", "")
