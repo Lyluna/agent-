@@ -33,6 +33,22 @@ Claude Code 通过全局 hooks 自动归档，配置在 `C:\Users\叶伟峰\.cla
 3. **浏览器端解密**：密码不发送到任何服务器
 4. **密码只存本地**：`.portal_key`（gitignore，不上传）
 
+## 双端统一门户（2026-10-21 起）
+
+**一份加密数据，两个门户**：GitHub Pages 与 WorkBuddy 云端共用同一 `encrypted.bin`、同一密码、同一界面。
+
+| 门户 | 地址 | 更新方式 |
+| --- | --- | --- |
+| GitHub Pages | https://lyluna.github.io/agent-/ | `auto_archive.py` 自动 git push（每 10 分钟） |
+| WorkBuddy 云端 | https://memory-portal.app.workbuddy.host/?sharecode=XRDJ4EIW75 | `sync_workbuddy_portal.py` + WorkBuddy 每小时自动化重新部署 |
+
+同步链路：
+1. `generate_portal_data.py` 生成 `data.json` + `encrypted.bin`，git push 更新 GitHub Pages
+2. `08-AI记忆\tools\sync_workbuddy_portal.py` 每小时检测 `encrypted.bin` 变化，同步到 `记忆库门户_deploy\`
+3. WorkBuddy 自动化任务「WorkBuddy云端门户自动同步」检测到变化后重新部署云端
+
+> 部署目录 `记忆库门户_deploy\` 只含 `index.html`、`encrypted.bin`、`打开本地门户.bat`、`README.md`，**绝不含**明文 `data.json` 和密码 `.portal_key`。
+
 ## 本地预览
 
 双击 `打开本地门户.bat` → 自动起本地服务器并打开浏览器 → 输入 `.portal_key` 里的密码。
