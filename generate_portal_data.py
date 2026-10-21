@@ -1,30 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-记忆库加密门户数据生成器
+记忆库加密门户数据生成器（白色门户 · 事实时间线 / 稳定认知 / 意图待办）
 ========================================
 功能：
-  1. 扫描 08-AI记忆 目录，生成明文 data.json（对话存档/技术决策/待办）
+  1. 扫描 08-AI记忆 目录，生成明文 data.json
+     - profile   画像（来自 长期背景.md）
+     - facts     事实时间线（来自 对话存档/*.md，一条对话 = 一条事实）
+     - beliefs   稳定认知（来自 技术决策.md）
+     - intents   意图待办（来自 待办与下一步.md）
   2. 用密码（来自 .portal_key）AES-256-GCM 加密为 encrypted.bin
   3. 自动 git 提交并推送到 GitHub Pages 仓库
 
 用法：
-  python generate_portal_data.py          # 生成 + 加密 + 推送
+  python generate_portal_data.py            # 生成 + 加密 + 推送
   python generate_portal_data.py --no-push  # 只生成 + 加密，不推送
 
 依赖：
-  pip install pycryptodome
+  pycryptodome（仓库内 _pylibs/ 已自带一份，无需安装）
 """
 import os
 import re
 import sys
 import json
 import glob
-import base64
 import subprocess
 from datetime import datetime
 
-# Windows 控制台 UTF-8 输出（修复 GBK 编码崩溃）
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
@@ -39,123 +41,260 @@ DATA_JSON = os.path.join(PORTAL_DIR, "data.json")
 ENC_BIN = os.path.join(PORTAL_DIR, "encrypted.bin")
 KEY_FILE = os.path.join(PORTAL_DIR, ".portal_key")
 
+# 仓库内自带的依赖目录（pycryptodome），保证换机器也能加密
+PYLIBS = os.path.join(PORTAL_DIR, "_pylibs")
+if os.path.isdir(PYLIBS) and PYLIBS not in sys.path:
+    sys.path.insert(0, PYLIBS)
+
 # ========== 加密参数（与 index.html 保持一致）==========
 PBKDF2_ITERATIONS = 310000
 SALT_LEN = 16
 IV_LEN = 12
 TAG_LEN = 16
 
-# ========== 工具识别 ==========
 TOOL_MAP = {
     "workbuddy": "WorkBuddy",
     "claude code": "Claude Code",
     "claude": "Claude Code",
     "opencode": "opencode",
     "deepseek": "DeepSeek",
-    "deepseek harness": "DeepSeek Harness",
     "hermes": "DeepSeek Harness",
     "obsidian": "Obsidian AI",
 }
 
 
 def detect_tool(text):
-    low = text.lower()
+    low = (text or "").lower()
     for k, v in TOOL_MAP.items():
         if k in low:
             return v
-    return "其他"
+    return text.strip() or "其他"
+
+
+def read_text(path):
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read().replace("\r\n", "\n").replace("\ufeff", "")
+    except OSError:
+        return ""
 
 
 def parse_frontmatter(content):
-    """解析 frontmatter，返回 (meta_dict, body)"""
     m = re.match(r"^---\n(.*?)\n---\n?(.*)$", content, re.S)
     if not m:
         return {}, content
-    fm, body = m.group(1), m.group(2)
     meta = {}
-    for line in fm.splitlines():
+    for line in m.group(1).splitlines():
         if ":" in line:
             k, v = line.split(":", 1)
-            meta[k.strip().lower()] = v.strip()
-    return meta, body
+            meta[k.strip().lower()] = v.strip().strip('"').strip("'")
+    return meta, m.group(2)
+
+
+def clean_inline(text, limit=None):
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)          # 图片
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)      # 链接
+    text = re.sub(r"[*_`>#|]+", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" -—:：")
+    if limit and len(text) > limit:
+        text = text[:limit].rstrip() + "…"
+    return text
+
+
+# ========== 事实时间线：对话存档 ==========
+def extract_fact_summary(body):
+    """优先取「关键结论」；否则取最后一次助手回复的开头。"""
+    m = re.search(r"#+\s*🔑\s*关键结论\s*\n(.*?)(?=\n#|\Z)", body, re.S)
+    if m:
+        bullets = [clean_inline(x) for x in re.findall(r"^[-*\d.]+\s+(.+)$", m.group(1), re.M)]
+        bullets = [b for b in bullets if b]
+        if bullets:
+            return clean_inline("；".join(bullets[:3]), 200)
+
+    parts = re.split(r"^##\s*助手回复[^\n]*\n", body, flags=re.M)
+    if len(parts) > 1:
+        last = parts[-1]
+        last = re.split(r"\n---\n", last)[0]
+        lines = []
+        for line in last.splitlines():
+            line = line.strip()
+            if not line or line.startswith(("#", ">", "|", "---", "```")):
+                continue
+            lines.append(clean_inline(line))
+            if len(" ".join(lines)) > 160:
+                break
+        if lines:
+            return clean_inline(" ".join(lines), 200)
+
+    for para in re.split(r"\n\s*\n", body):
+        p = para.strip()
+        if p and not p.startswith(("#", ">", "|", "---")):
+            return clean_inline(p, 200)
+    return "（暂无摘要，展开查看完整对话）"
 
 
 def parse_archive(filepath):
-    """解析单个对话存档，返回门户展示字段"""
-    with open(filepath, "r", encoding="utf-8") as f:
-        content = f.read()
+    content = read_text(filepath)
     fname = os.path.basename(filepath).replace(".md", "")
     meta, body = parse_frontmatter(content)
 
-    title = meta.get("title") or meta.get("topic") or fname
+    title = meta.get("topic") or meta.get("title") or fname
     tool = detect_tool(meta.get("tool", ""))
-    created = meta.get("created", "")[:16]
-
-    # 判断是否完整版：优先读 frontmatter 的 archive_type 字段
+    created = (meta.get("created") or "").strip()
+    if not created:
+        created = datetime.fromtimestamp(os.path.getmtime(filepath)).strftime("%Y-%m-%d %H:%M")
+    status = meta.get("status", "")
     archive_type = meta.get("archive_type", "")
     if not archive_type:
-        is_full = ("完整对话记录" in content) or ("完整记录" in content)
-        archive_type = "full" if is_full else "summary"
+        archive_type = "full" if ("完整对话记录" in content or "完整记录" in content) else "summary"
 
-    # 提取摘要/详情
-    if archive_type == "full":
-        # 完整版：detail 为全文，summary 取开头几句
-        summary = "（完整对话存档，展开查看全文）"
-        detail = body.strip()
-    else:
-        # 摘要版：detail 为正文
-        summary = "（摘要版存档，原始对话未保留）"
-        detail = body.strip()
+    # 去掉自动归档的头部说明，避免时间线摘要全是套话
+    summary = extract_fact_summary(body)
 
     return {
-        "date": created or datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "date": created[:16],
         "tool": tool,
         "file": fname,
         "title": title,
         "archive_type": archive_type,
+        "status": status,
         "summary": summary,
-        "detail": detail,
+        "detail": body.strip(),
     }
 
 
-def extract_sections(filepath, section_titles):
-    """读取 md，按 ### 标题提取 section 内容"""
-    with open(filepath, "r", encoding="utf-8") as f:
-        content = f.read()
-    items = []
-    current_title = None
-    current_body = []
-    for line in content.splitlines():
-        if line.startswith("### "):
-            if current_title:
-                items.append((current_title, " ".join(current_body).strip()))
-            current_title = line[4:].strip()
-            current_body = []
-        elif current_title and line.strip() and not line.startswith("#"):
-            current_body.append(line.strip())
-    if current_title:
-        items.append((current_title, " ".join(current_body).strip()))
-    return items
+def load_facts():
+    facts = []
+    for filepath in glob.glob(os.path.join(ARCHIVE_DIR, "*.md")):
+        try:
+            facts.append(parse_archive(filepath))
+        except Exception as e:
+            print(f"  [!] 跳过 {os.path.basename(filepath)}: {e}")
+    facts.sort(key=lambda x: x["date"], reverse=True)
+    return facts
 
 
-def extract_todos(filepath):
-    todos = {"high": [], "mid": [], "low": []}
-    with open(filepath, "r", encoding="utf-8") as f:
-        content = f.read()
+# ========== 稳定认知：技术决策 ==========
+def parse_beliefs():
+    content = read_text(os.path.join(MEMORY_DIR, "技术决策.md"))
+    _, body = parse_frontmatter(content)
+    beliefs = []
+    current_date = ""
     current = None
-    for line in content.splitlines():
-        line = line.strip()
-        if line.startswith("### 高优先级"):
+    buf = []
+
+    def flush():
+        nonlocal current, buf
+        if current:
+            detail_lines = [clean_inline(x) for x in buf if clean_inline(x)]
+            detail = "；".join(detail_lines)[:260]
+            text = current + ("：" + detail if detail else "")
+            confidence = 0.85
+            if re.search(r"定案|定调|结论|已确认|必须|禁止", text):
+                confidence = 0.95
+            elif re.search(r"踩坑|报错|问题|不可用", text):
+                confidence = 0.8
+            beliefs.append({
+                "statement": text,
+                "title": current,
+                "detail": detail,
+                "updated": current_date,
+                "confidence": confidence,
+            })
+        current, buf = None, []
+
+    for line in body.splitlines():
+        s = line.strip()
+        mdate = re.match(r"^##\s+(\d{4}-\d{2}-\d{2})\s*$", s)
+        if mdate:
+            flush()
+            current_date = mdate.group(1)
+            continue
+        mh3 = re.match(r"^###\s+(.+)$", s)
+        if mh3:
+            flush()
+            current = clean_inline(mh3.group(1), 80)
+            continue
+        if re.match(r"^##\s+", s):
+            flush()
+            continue
+        if current and s:
+            buf.append(s)
+    flush()
+    # 最新的排前面
+    beliefs.sort(key=lambda b: b["updated"], reverse=True)
+    return beliefs
+
+
+# ========== 意图待办 ==========
+def parse_intents():
+    content = read_text(os.path.join(MEMORY_DIR, "待办与下一步.md"))
+    _, body = parse_frontmatter(content)
+    intents = []
+    current = None
+    for line in body.splitlines():
+        s = line.strip()
+        if s.startswith("### 高优先级"):
             current = "high"
-        elif line.startswith("### 中优先级"):
+        elif s.startswith("### 中优先级"):
             current = "mid"
-        elif line.startswith("### 低优先级"):
+        elif s.startswith("### 低优先级"):
             current = "low"
-        elif line.startswith("### "):
+        elif s.startswith("### ") or s.startswith("## "):
             current = None
-        elif current and line.startswith("- [ ]"):
-            todos[current].append(line[5:].strip())
-    return todos
+        elif current:
+            m = re.match(r"^-\s*\[( |x|X)\]\s*(.+)$", s)
+            if m:
+                intents.append({
+                    "task": clean_inline(m.group(2), 240),
+                    "priority": current,
+                    "done": m.group(1).lower() == "x",
+                })
+    order = {"high": 0, "mid": 1, "low": 2}
+    intents.sort(key=lambda i: (i["done"], order.get(i["priority"], 9)))
+    return intents
+
+
+# ========== 画像 ==========
+def parse_profile():
+    content = read_text(os.path.join(MEMORY_DIR, "长期背景.md"))
+    _, body = parse_frontmatter(content)
+
+    def grab(pattern):
+        m = re.search(pattern, body)
+        return clean_inline(m.group(1), 120) if m else ""
+
+    name = grab(r"\*\*姓名\*\*[：:]\s*(.+)")
+    role = grab(r"\*\*职业\*\*[：:]\s*(.+)")
+    focus = grab(r"\*\*主要工作\*\*[：:]\s*(.+)")
+
+    tools = []
+    for line in body.splitlines():
+        m = re.match(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|", line)
+        if m and "工具" not in m.group(1) and "---" not in m.group(1):
+            tools.append({"name": m.group(1), "usage": m.group(2)})
+
+    def section_bullets(title):
+        m = re.search(r"^##\s*" + re.escape(title) + r"\s*\n(.*?)(?=\n##\s|\Z)", body, re.S | re.M)
+        if not m:
+            return []
+        items = []
+        for line in m.group(1).splitlines():
+            s = line.strip()
+            mb = re.match(r"^[-*]\s+(.+)$", s)
+            mn = re.match(r"^\d+\.\s+(.+)$", s)
+            if mb or mn:
+                items.append(clean_inline((mb or mn).group(1), 100))
+        return items
+
+    return {
+        "name": name or "用户",
+        "role": " · ".join(x for x in [role, focus] if x) or "开发者",
+        "focus": focus,
+        "tools": tools,
+        "preferences": section_bullets("沟通偏好"),
+        "rules": section_bullets("需要 AI 记住的规则"),
+    }
 
 
 # ========== 加密 ==========
@@ -175,12 +314,12 @@ def get_password():
 def encrypt_data(plaintext: bytes, password: str) -> bytes:
     from Crypto.Cipher import AES
     from Crypto.Protocol.KDF import PBKDF2
-    from Crypto.Hash import SHA256, HMAC
+    from Crypto.Hash import SHA256
 
     salt = os.urandom(SALT_LEN)
     iv = os.urandom(IV_LEN)
-    # PBKDF2-HMAC-SHA256 派生 32 字节密钥（密码需 UTF-8 编码）
-    key = PBKDF2(password.encode("utf-8"), salt, dkLen=32, count=PBKDF2_ITERATIONS, hmac_hash_module=SHA256)
+    key = PBKDF2(password.encode("utf-8"), salt, dkLen=32,
+                 count=PBKDF2_ITERATIONS, hmac_hash_module=SHA256)
     cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
     ct, tag = cipher.encrypt_and_digest(plaintext)
     return salt + iv + tag + ct
@@ -190,37 +329,33 @@ def encrypt_data(plaintext: bytes, password: str) -> bytes:
 def main():
     no_push = "--no-push" in sys.argv
 
-    print(f"扫描对话存档目录：{ARCHIVE_DIR}")
-    conversations = []
-    for filepath in sorted(glob.glob(os.path.join(ARCHIVE_DIR, "*.md"))):
-        try:
-            conv = parse_archive(filepath)
-            conversations.append(conv)
-            print(f"  ✅ {conv['file']} [{conv['archive_type']}] -> {conv['title']}")
-        except Exception as e:
-            print(f"  ⚠️ 跳过 {os.path.basename(filepath)}: {e}")
+    facts = load_facts()
+    in_progress = sum(1 for f in facts if f["status"] == "进行中")
+    print(f"事实时间线：{len(facts)} 条（进行中 {in_progress}）")
 
-    conversations.sort(key=lambda x: x["date"], reverse=True)
+    beliefs = parse_beliefs()
+    print(f"稳定认知：{len(beliefs)} 条")
 
-    decisions = []
-    for title, content in extract_sections(os.path.join(MEMORY_DIR, "技术决策.md"), []):
-        decisions.append({"title": title, "content": content[:300]})
-    print(f"技术决策：{len(decisions)} 条")
+    intents = parse_intents()
+    pending = sum(1 for i in intents if not i["done"])
+    print(f"意图待办：{len(intents)} 条（未完成 {pending}）")
 
-    todos = extract_todos(os.path.join(MEMORY_DIR, "待办与下一步.md"))
-    print(f"待办：高{len(todos['high'])} 中{len(todos['mid'])} 低{len(todos['low'])}")
+    profile = parse_profile()
+    print(f"画像：{profile['name']} · {profile['role']}")
 
     data = {
-        "lastUpdated": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "conversations": conversations,
-        "decisions": decisions,
-        "todos": todos,
+        "updated": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "profile": profile,
+        "facts": facts,
+        "beliefs": beliefs,
+        "intents": intents,
     }
 
     os.makedirs(PORTAL_DIR, exist_ok=True)
     with open(DATA_JSON, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"\n✅ 明文 data.json 已生成：{DATA_JSON}")
+    print(f"\n✅ 明文 data.json 已生成：{DATA_JSON} "
+          f"({os.path.getsize(DATA_JSON) / 1024:.0f} KB)")
 
     password = get_password()
     with open(DATA_JSON, "rb") as f:
@@ -234,12 +369,14 @@ def main():
         print("\n[--no-push] 跳过 git 推送。")
         return
 
-    # git 提交 + 推送
     try:
-        subprocess.run(["git", "add", "index.html", "encrypted.bin", "generate_portal_data.py", "README.md", ".gitignore"],
-                       cwd=PORTAL_DIR, check=True, capture_output=True, text=True)
-        subprocess.run(["git", "commit", "-m", f"portal update {data['lastUpdated']}"],
-                       cwd=PORTAL_DIR, check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["git", "add", "index.html", "encrypted.bin",
+             "generate_portal_data.py", "README.md", ".gitignore"],
+            cwd=PORTAL_DIR, check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["git", "commit", "-m", f"portal update {data['updated']}"],
+            cwd=PORTAL_DIR, check=True, capture_output=True, text=True)
         print("\n✅ 已本地提交")
     except subprocess.CalledProcessError as e:
         stderr = (e.stderr or "").strip()
@@ -249,7 +386,8 @@ def main():
             print("\n⚠️ git 提交失败：", stderr[-500:])
 
     try:
-        r = subprocess.run(["git", "push"], cwd=PORTAL_DIR, check=True, capture_output=True, text=True)
+        subprocess.run(["git", "push"], cwd=PORTAL_DIR,
+                       check=True, capture_output=True, text=True)
         print("✅ 已推送到 GitHub，Pages 自动更新中")
     except subprocess.CalledProcessError as e:
         print("\n⚠️ git push 失败：", (e.stderr or "").strip()[-800:])

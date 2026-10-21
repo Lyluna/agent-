@@ -3,169 +3,275 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🔐 共享记忆库 · 加密门户</title>
+<meta name="color-scheme" content="light">
+<title>共享记忆库 · 加密门户</title>
 <style>
   :root {
-    --bg: #0f1115;
-    --panel: #1a1d24;
-    --card: #22262f;
-    --border: #2e3440;
-    --text: #e6e9ef;
-    --muted: #8b93a3;
-    --accent: #6c9fff;
-    --green: #4ade80;
-    --yellow: #fbbf24;
-    --red: #f87171;
-    --purple: #c084fc;
-    --cyan: #22d3ee;
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --surface-2: #f1efe8;
+    --border: rgba(0,0,0,0.10);
+    --border-strong: rgba(0,0,0,0.18);
+    --text: #2c2c2a;
+    --text-2: #5f5e5a;
+    --text-3: #888780;
+    --accent: #534ab7;
+    --accent-soft: #eeedfe;
+    --teal: #0f6e56;
+    --teal-soft: #e1f5ee;
+    --amber: #854f0b;
+    --amber-soft: #faeeda;
+    --red: #a32d2d;
+    --red-soft: #fcebeb;
+    --radius: 12px;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
+  html { background: var(--bg); }
   body {
-    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
     background: var(--bg);
     color: var(--text);
-    line-height: 1.6;
+    line-height: 1.65;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font-family: inherit; }
+
+  /* ---------- 锁屏 ---------- */
+  #lock {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
     padding: 24px;
   }
-  .container { max-width: 1200px; margin: 0 auto; }
-  .header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
-  .header h1 { font-size: 28px; font-weight:700; }
-  .header h1 span { color: var(--accent); }
-  .header .sub { color: var(--muted); font-size:14px; margin-top:4px; }
-  .header .updated { color: var(--muted); font-size:12px; margin-top:2px; }
-  .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  .search-box {
-    background: var(--panel); border:1px solid var(--border); border-radius:8px;
-    padding:8px 14px; color:var(--text); font-size:14px; width:260px; outline:none;
+  .lock-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 44px 36px;
+    width: 100%; max-width: 380px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.05);
   }
-  .search-box:focus { border-color: var(--accent); }
-  .badge { padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; background:var(--card); border:1px solid var(--border); cursor:pointer; transition:all .2s; }
-  .badge.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:14px; margin-bottom:24px; }
-  .stat-card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; text-align:center; }
-  .stat-card .num { font-size:32px; font-weight:700; }
-  .stat-card .label { color:var(--muted); font-size:13px; margin-top:4px; }
-  .stat-card .num.blue { color:var(--accent); }
-  .stat-card .num.green { color:var(--green); }
-  .stat-card .num.yellow { color:var(--yellow); }
-  .stat-card .num.purple { color:var(--purple); }
-  .section { margin-bottom:28px; }
-  .section-title { font-size:18px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
-  .section-title .line { flex:1; height:1px; background:var(--border); }
-  .timeline { position:relative; padding-left:24px; }
-  .timeline::before { content:''; position:absolute; left:6px; top:0; bottom:0; width:2px; background:var(--border); }
-  .conv-item {
-    position:relative; background:var(--panel); border:1px solid var(--border);
-    border-radius:10px; padding:14px 16px; margin-bottom:12px; cursor:pointer; transition:all .2s;
+  .lock-icon {
+    width: 56px; height: 56px; margin: 0 auto 18px;
+    border-radius: 14px; background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center;
   }
-  .conv-item:hover { border-color:var(--accent); transform:translateX(2px); }
-  .conv-item::before { content:''; position:absolute; left:-24px; top:18px; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid var(--bg); }
-  .conv-item .meta { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
-  .conv-item .date { color:var(--muted); font-size:12px; }
-  .tool-tag { font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600; }
-  .tool-tag.WorkBuddy { background:rgba(108,159,255,.15); color:var(--accent); }
-  .tool-tag.Claude { background:rgba(192,132,252,.15); color:var(--purple); }
-  .tool-tag.opencode { background:rgba(34,211,238,.15); color:var(--cyan); }
-  .tool-tag.DeepSeek { background:rgba(74,222,128,.15); color:var(--green); }
-  .conv-item .title { font-size:15px; font-weight:600; }
-  .conv-item .summary { color:var(--muted); font-size:13px; margin-top:4px; }
-  .conv-item .expand { display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); font-size:13px; color:var(--text); white-space:pre-wrap; max-height:70vh; overflow:auto; }
-  .conv-item.open .expand { display:block; }
-  .decision-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px,1fr)); gap:12px; }
-  .decision-card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
-  .decision-card h4 { color:var(--accent); font-size:14px; margin-bottom:6px; }
-  .decision-card p { color:var(--muted); font-size:13px; }
-  .todo-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px,1fr)); gap:12px; }
-  .todo-card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
-  .todo-card .priority { font-size:11px; font-weight:700; padding:2px 8px; border-radius:8px; }
-  .priority.high { background:rgba(248,113,113,.15); color:var(--red); }
-  .priority.mid { background:rgba(251,191,36,.15); color:var(--yellow); }
-  .priority.low { background:rgba(139,147,163,.15); color:var(--muted); }
-  .todo-card ul { margin-top:8px; list-style:none; }
-  .todo-card li { font-size:13px; padding:4px 0; border-bottom:1px dashed var(--border); color:var(--text); }
-  .todo-card li:last-child { border-bottom:none; }
-  .empty { text-align:center; color:var(--muted); padding:40px 0; font-size:14px; }
-  .action-btn { background:var(--card); border:1px solid var(--border); color:var(--text); padding:6px 14px; border-radius:8px; cursor:pointer; font-size:13px; transition:all .2s; }
-  .action-btn:hover { border-color:var(--accent); }
+  .lock-icon svg { width: 26px; height: 26px; }
+  .lock-card h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; letter-spacing: .02em; }
+  .lock-card p { font-size: 13px; color: var(--text-2); margin-bottom: 26px; }
+  .lock-input {
+    width: 100%; padding: 12px 16px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface-2); color: var(--text);
+    outline: none; margin-bottom: 12px; text-align: center; letter-spacing: .08em;
+  }
+  .lock-input:focus { border-color: var(--accent); background: var(--surface); }
+  .lock-btn {
+    width: 100%; padding: 12px; font-size: 14px; font-weight: 600;
+    color: #fff; background: var(--accent); border: none; border-radius: 10px;
+    cursor: pointer; transition: opacity .15s;
+  }
+  .lock-btn:hover { opacity: .9; }
+  .lock-btn:disabled { opacity: .5; cursor: wait; }
+  .lock-msg { font-size: 12px; color: var(--red); margin-top: 12px; min-height: 18px; }
+  .lock-hint { font-size: 11px; color: var(--text-3); margin-top: 16px; line-height: 1.5; }
 
-  /* 密码锁屏 */
-  #lockScreen {
-    position:fixed; inset:0; background:var(--bg); z-index:100;
-    display:flex; align-items:center; justify-content:center;
-  }
-  .lock-box { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:40px; width:340px; text-align:center; }
-  .lock-box .lock-icon { font-size:48px; margin-bottom:12px; }
-  .lock-box h2 { font-size:20px; margin-bottom:8px; }
-  .lock-box p { color:var(--muted); font-size:13px; margin-bottom:20px; }
-  .lock-box input {
-    width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border);
-    background:var(--card); color:var(--text); font-size:15px; outline:none; margin-bottom:12px;
-  }
-  .lock-box input:focus { border-color:var(--accent); }
-  .lock-box .btn {
-    width:100%; padding:10px; border-radius:8px; border:none; background:var(--accent);
-    color:#fff; font-size:15px; font-weight:600; cursor:pointer;
-  }
-  .lock-box .btn:disabled { opacity:.5; cursor:wait; }
-  .lock-box .err { color:var(--red); font-size:13px; margin-top:10px; min-height:18px; }
-  .hint { color:var(--muted); font-size:11px; margin-top:16px; }
+  /* ---------- 主界面 ---------- */
+  #app { display: none; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 36px 20px 72px; }
 
-  @media (max-width:640px) { body { padding:16px; } .search-box { width:100%; } }
+  header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .brand h1 { font-size: 22px; font-weight: 600; letter-spacing: .02em; }
+  .brand h1 .dot { color: var(--accent); }
+  .brand p { font-size: 13px; color: var(--text-2); margin-top: 3px; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .chip {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 13px; font-size: 12px;
+    color: var(--text-2); white-space: nowrap;
+  }
+  .chip b { color: var(--text); font-weight: 600; margin-right: 4px; }
+  .chip.live { color: var(--teal); background: var(--teal-soft); border-color: transparent; }
+
+  .search {
+    width: 100%; padding: 11px 16px; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface); color: var(--text);
+    outline: none; margin-bottom: 30px;
+  }
+  .search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search::placeholder { color: var(--text-3); }
+
+  section { margin-bottom: 38px; }
+  .sec-title {
+    font-size: 14px; font-weight: 600; margin-bottom: 7px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sec-title::before {
+    content: ""; width: 4px; height: 15px; border-radius: 2px; background: var(--accent);
+  }
+  .sec-title .count { font-size: 12px; color: var(--text-3); font-weight: 400; }
+  .sec-sub { font-size: 12px; color: var(--text-3); margin: 0 0 14px 12px; }
+
+  /* ---------- 画像 ---------- */
+  .profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .p-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 15px 17px; }
+  .p-card h3 { font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: .06em; margin-bottom: 8px; }
+  .p-card .val { font-size: 14px; color: var(--text); }
+  .p-card .sub { font-size: 12px; color: var(--text-2); margin-top: 3px; }
+  .p-card ul { list-style: none; }
+  .p-card li { font-size: 13px; color: var(--text-2); padding: 3px 0 3px 13px; position: relative; }
+  .p-card li::before {
+    content: ""; position: absolute; left: 0; top: 11px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: .7;
+  }
+
+  /* ---------- 事实时间线 ---------- */
+  .filters { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 14px; }
+  .filter {
+    font-size: 12px; padding: 4px 11px; border-radius: 999px;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-2); cursor: pointer; transition: all .15s;
+  }
+  .filter:hover { border-color: var(--accent); color: var(--accent); }
+  .filter.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .timeline { position: relative; padding-left: 20px; }
+  .timeline::before {
+    content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px;
+    width: 1px; background: var(--border-strong);
+  }
+  .t-item {
+    position: relative; padding: 13px 16px 13px 16px; margin-bottom: 9px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    cursor: pointer; transition: border-color .15s, box-shadow .15s;
+  }
+  .t-item:hover { border-color: var(--border-strong); box-shadow: 0 2px 10px rgba(0,0,0,.035); }
+  .t-item::before {
+    content: ""; position: absolute; left: -20px; top: 20px;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--bg);
+  }
+  .t-item.is-live::before { background: var(--teal); }
+  .t-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .t-date { font-size: 11.5px; color: var(--text-3); font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+  .t-src {
+    font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 4px;
+    background: var(--teal-soft); color: var(--teal);
+  }
+  .t-src.WorkBuddy { background: var(--accent-soft); color: var(--accent); }
+  .t-src.opencode { background: #e6f4f1; color: #0b6b5f; }
+  .t-src.DeepSeek, .t-src\.DeepSeek { background: #eef1fb; color: #3b4fa8; }
+  .t-live { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 4px; background: var(--teal-soft); color: var(--teal); }
+  .t-topic { font-size: 14px; font-weight: 600; margin: 1px 0 2px; }
+  .t-sum { font-size: 13px; color: var(--text-2); }
+  .t-detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-strong); }
+  .t-item.open .t-detail { display: block; }
+  .t-detail pre {
+    font-family: inherit; font-size: 12.5px; color: var(--text-2);
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 65vh; overflow: auto;
+  }
+  .t-detail .hint { font-size: 11px; color: var(--text-3); margin-bottom: 8px; }
+
+  /* ---------- 稳定认知 ---------- */
+  .belief-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .b-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 15px 17px;
+  }
+  .b-card p { font-size: 13px; color: var(--text); }
+  .b-card p + p { margin-top: 6px; color: var(--text-2); font-size: 12.5px; }
+  .b-meta {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--text-3); margin-top: 11px;
+  }
+  .b-conf { color: var(--amber); background: var(--amber-soft); border-radius: 4px; padding: 1px 7px; white-space: nowrap; }
+
+  /* ---------- 意图待办 ---------- */
+  .todo-item {
+    display: flex; align-items: flex-start; gap: 11px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 15px; margin-bottom: 7px;
+  }
+  .todo-item .box {
+    width: 16px; height: 16px; flex-shrink: 0; margin-top: 3px;
+    border: 1.5px solid var(--text-3); border-radius: 5px;
+  }
+  .todo-item.done { opacity: .55; }
+  .todo-item.done .box { background: var(--teal); border-color: var(--teal); position: relative; }
+  .todo-item.done .box::after {
+    content: "✓"; position: absolute; inset: -2px 0 0 0;
+    color: #fff; font-size: 11px; text-align: center; line-height: 16px;
+  }
+  .todo-item.done .txt { text-decoration: line-through; }
+  .todo-item .txt { flex: 1; font-size: 13px; }
+  .prio { font-size: 10.5px; border-radius: 4px; padding: 1px 8px; flex-shrink: 0; margin-top: 3px; white-space: nowrap; }
+  .prio.high { color: var(--red); background: var(--red-soft); }
+  .prio.mid { color: var(--amber); background: var(--amber-soft); }
+  .prio.low { color: var(--text-3); background: var(--surface-2); }
+
+  .empty { font-size: 13px; color: var(--text-3); padding: 22px 0; text-align: center; }
+
+  footer { margin-top: 44px; text-align: center; font-size: 12px; color: var(--text-3); }
+  footer .enc {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--teal-soft); color: var(--teal);
+    border-radius: 999px; padding: 4px 12px; margin-bottom: 8px; font-size: 11.5px;
+  }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 24px 16px 56px; }
+    .lock-card { padding: 36px 24px; }
+    .t-item { padding: 12px 13px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 
 <!-- 密码锁屏 -->
-<div id="lockScreen">
-  <div class="lock-box">
-    <div class="lock-icon">🔐</div>
-    <h2>共享记忆库</h2>
-    <p>内容已 AES-256-GCM 加密<br>请输入门户密码解密查看</p>
-    <input type="password" id="passwordInput" placeholder="门户密码" autocomplete="current-password">
-    <button class="btn" id="unlockBtn" onclick="unlock()">解锁</button>
-    <div class="err" id="lockErr"></div>
-    <div class="hint">密码在本地 记忆库门户/.portal_key 中设置</div>
+<div id="lock">
+  <div class="lock-card">
+    <div class="lock-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#534ab7" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="10" width="16" height="11" rx="2.5"/>
+        <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+        <circle cx="12" cy="15.5" r="1.2"/>
+      </svg>
+    </div>
+    <h1>共享记忆库</h1>
+    <p>内容已加密 · 输入访问密码解锁</p>
+    <input class="lock-input" id="passwordInput" type="password" placeholder="访问密码" autocomplete="current-password">
+    <button class="lock-btn" id="unlockBtn" onclick="unlock()">解密进入</button>
+    <div class="lock-msg" id="lockErr"></div>
+    <div class="lock-hint">AES-256-GCM 客户端解密<br>服务端只保存密文</div>
   </div>
 </div>
 
-<div class="container" id="mainContent" style="display:none;">
-  <div class="header">
-    <div>
-      <h1>🧠 <span>共享记忆库</span>总览</h1>
-      <div class="sub">所有 AI agent（Claude Code / opencode / WorkBuddy / DeepSeek）的对话中枢</div>
-      <div class="updated" id="updatedLabel">加载中...</div>
-    </div>
-    <div class="toolbar">
-      <input class="search-box" id="searchInput" type="text" placeholder="🔍 搜索对话、决策、待办...">
-      <button class="action-btn" onclick="toggleAll()">展开/折叠全部</button>
-    </div>
-  </div>
+<!-- 主界面 -->
+<div id="app">
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <h1>共享记忆库<span class="dot">.</span></h1>
+        <p id="updated">所有 agent 共享的单一记忆源</p>
+      </div>
+      <div class="stats" id="stats"></div>
+    </header>
 
-  <div class="stats" id="statsRow">
-    <div class="stat-card"><div class="num blue" id="statConvs">0</div><div class="label">对话存档</div></div>
-    <div class="stat-card"><div class="num green" id="statTools">0</div><div class="label">接入的 AI 工具</div></div>
-    <div class="stat-card"><div class="num yellow" id="statDecisions">0</div><div class="label">技术决策</div></div>
-    <div class="stat-card"><div class="num purple" id="statTodos">0</div><div class="label">待办事项</div></div>
-  </div>
+    <input class="search" id="search" type="text" placeholder="搜索事实、认知、待办…">
 
-  <div class="section">
-    <div class="section-title">💬 全部对话 <span class="line"></span></div>
-    <div class="toolbar" style="margin-bottom:14px;" id="filterBar"></div>
-    <div id="timeline" class="timeline"></div>
-  </div>
+    <div id="content"></div>
 
-  <div class="section">
-    <div class="section-title">💡 技术决策 <span class="line"></span></div>
-    <div class="decision-grid" id="decisionGrid"></div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">✅ 待办与下一步 <span class="line"></span></div>
-    <div class="todo-list" id="todoList"></div>
-  </div>
-
-  <div style="text-align:center; color:var(--muted); font-size:12px; padding:20px 0 40px;">
-    数据由 generate_portal_data.py 自动生成 · 内容 AES-256-GCM 加密 · 仅本地存在明文
+    <footer>
+      <div class="enc">AES-256-GCM 端到端加密 · 密码只存在于本地</div>
+      <div>memory-core · Markdown 为唯一真相源 · 事实 / 认知 / 意图 三层记忆</div>
+    </footer>
   </div>
 </div>
 
@@ -174,36 +280,38 @@
 const PBKDF2_ITERATIONS = 310000;
 const SALT_LEN = 16, IV_LEN = 12, TAG_LEN = 16;
 
-let DATA = { conversations: [], decisions: [], todos: { high: [], mid: [], low: [] } };
-let currentFilter = 'all';
-const toolLabels = {
-  'WorkBuddy': { text: 'WorkBuddy', cls: 'WorkBuddy' },
-  'Claude Code': { text: 'Claude Code', cls: 'Claude' },
-  'opencode': { text: 'opencode', cls: 'opencode' },
-  'DeepSeek': { text: 'DeepSeek', cls: 'DeepSeek' },
-  'DeepSeek Harness': { text: 'DeepSeek Harness', cls: 'DeepSeek' },
-  'Obsidian AI': { text: 'Obsidian AI', cls: 'Claude' }
+let MEM = { profile: {}, facts: [], beliefs: [], intents: [] };
+let query = '';
+let toolFilter = 'all';
+
+const TOOL_CLASS = {
+  'Claude Code': 'Claude', 'WorkBuddy': 'WorkBuddy', 'opencode': 'opencode',
+  'DeepSeek': 'DeepSeek', 'DeepSeek Harness': 'DeepSeek', 'Obsidian AI': 'Claude'
 };
+
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+function matches(s) { return !query || String(s || '').toLowerCase().includes(query); }
 
 // ========== 解密 ==========
 async function deriveKey(password, salt) {
   const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
-  );
+  const km = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
-    keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    km, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
   );
 }
 
 async function unlock() {
-  const input = document.getElementById('passwordInput');
-  const err = document.getElementById('lockErr');
-  const btn = document.getElementById('unlockBtn');
+  const input = $('passwordInput'), err = $('lockErr'), btn = $('unlockBtn');
   const password = input.value;
   if (!password) { err.textContent = '请输入密码'; return; }
-  btn.disabled = true; btn.textContent = '解密中...'; err.textContent = '';
+  btn.disabled = true; btn.textContent = '解密中…'; err.textContent = '';
 
   try {
     const resp = await fetch('encrypted.bin', { cache: 'no-cache' });
@@ -216,18 +324,24 @@ async function unlock() {
     const ct = buf.slice(SALT_LEN + IV_LEN + TAG_LEN);
 
     const key = await deriveKey(password, salt);
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, key, concat(ct, tag));
-    DATA = JSON.parse(new TextDecoder().decode(decrypted));
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv, tagLength: 128 }, key, concat(ct, tag)
+    );
+    MEM = JSON.parse(new TextDecoder().decode(decrypted));
+    MEM.profile = MEM.profile || {};
+    MEM.facts = MEM.facts || [];
+    MEM.beliefs = MEM.beliefs || [];
+    MEM.intents = MEM.intents || [];
 
-    document.getElementById('lockScreen').style.display = 'none';
-    document.getElementById('mainContent').style.display = 'block';
-    document.getElementById('updatedLabel').textContent = '📅 最近更新：' + (DATA.lastUpdated || '未知');
-    renderAll();
+    $('lock').style.display = 'none';
+    $('app').style.display = 'block';
+    $('updated').textContent = '更新于 ' + (MEM.updated || '-');
+    render();
   } catch (e) {
     console.error(e);
-    err.textContent = '❌ 密码错误或数据损坏';
+    err.textContent = '密码错误或数据损坏，请重试';
   } finally {
-    btn.disabled = false; btn.textContent = '解锁';
+    btn.disabled = false; btn.textContent = '解密进入';
   }
 }
 
@@ -237,92 +351,125 @@ function concat(a, b) {
   return out;
 }
 
-document.getElementById('passwordInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+$('passwordInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
 
 // ========== 渲染 ==========
-function renderAll() { renderStats(); renderFilterBar(); renderTimeline(); renderDecisions(); renderTodos(); }
+function render() {
+  renderStats();
+  renderContent();
+}
 
 function renderStats() {
-  document.getElementById('statConvs').textContent = DATA.conversations.length;
-  const tools = new Set(DATA.conversations.map(c => c.tool));
-  document.getElementById('statTools').textContent = tools.size;
-  document.getElementById('statDecisions').textContent = DATA.decisions.length;
-  document.getElementById('statTodos').textContent =
-    (DATA.todos.high?.length || 0) + (DATA.todos.mid?.length || 0) + (DATA.todos.low?.length || 0);
+  const facts = MEM.facts.filter(f => matches(f.title + f.summary + f.detail + f.tool));
+  const beliefs = MEM.beliefs.filter(b => matches(b.statement + b.detail));
+  const intents = MEM.intents.filter(i => matches(i.task));
+  const pending = intents.filter(i => !i.done).length;
+  const live = MEM.facts.filter(f => f.status === '进行中').length;
+  $('stats').innerHTML =
+    `<span class="chip"><b>${MEM.facts.length}</b>条事实</span>` +
+    `<span class="chip"><b>${MEM.beliefs.length}</b>条认知</span>` +
+    `<span class="chip"><b>${pending}</b>项待办</span>` +
+    (live ? `<span class="chip live">${live} 个对话进行中</span>` : '');
 }
 
-function renderFilterBar() {
-  const bar = document.getElementById('filterBar');
-  const tools = ['all', ...new Set(DATA.conversations.map(c => c.tool))];
-  bar.innerHTML = tools.map(t => {
-    const label = t === 'all' ? '全部' : (toolLabels[t]?.text || t);
-    return `<span class="badge${t === 'all' ? ' active' : ''}" data-tool="${t}" onclick="filterByTool('${t}', this)">${label}</span>`;
-  }).join('');
-}
+function renderContent() {
+  let html = '';
 
-function filterByTool(tool, el) {
-  currentFilter = tool;
-  document.querySelectorAll('#filterBar .badge').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  renderTimeline();
-}
+  // ---------- 画像 ----------
+  const p = MEM.profile || {};
+  html += '<section><div class="sec-title">画像 <span class="count">跨 agent 共享</span></div>' +
+    '<div class="sec-sub">你是谁、用什么工具、希望 AI 怎么配合你</div>' +
+    '<div class="profile-grid">';
+  html += `<div class="p-card"><h3>基本信息</h3><div class="val">${esc(p.name || '-')}</div>` +
+    `<div class="sub">${esc(p.role || '')}</div></div>`;
+  html += `<div class="p-card"><h3>接入工具</h3><ul>` +
+    (p.tools || []).map(t => `<li>${esc(t.name)} — ${esc(t.usage)}</li>`).join('') +
+    `</ul></div>`;
+  html += `<div class="p-card"><h3>沟通偏好</h3><ul>` +
+    (p.preferences || []).map(x => `<li>${esc(x)}</li>`).join('') +
+    `</ul></div>`;
+  html += `<div class="p-card"><h3>记忆规则</h3><ul>` +
+    (p.rules || []).map(x => `<li>${esc(x)}</li>`).join('') +
+    `</ul></div>`;
+  html += '</div></section>';
 
-function renderTimeline() {
-  const tl = document.getElementById('timeline');
-  const search = document.getElementById('searchInput').value.toLowerCase();
-  const list = DATA.conversations.filter(c => {
-    const matchTool = currentFilter === 'all' || c.tool === currentFilter;
-    const matchSearch = !search || (c.title + c.summary + c.detail).toLowerCase().includes(search);
-    return matchTool && matchSearch;
+  // ---------- 事实时间线 ----------
+  const tools = [...new Set(MEM.facts.map(f => f.tool))];
+  let facts = MEM.facts.filter(f => {
+    const okTool = toolFilter === 'all' || f.tool === toolFilter;
+    const okSearch = matches(f.title + f.summary + f.detail + f.tool + f.date);
+    return okTool && okSearch;
   });
-  if (!list.length) { tl.innerHTML = '<div class="empty">没有匹配的对话</div>'; return; }
-  tl.innerHTML = list.map(c => {
-    const t = toolLabels[c.tool] || { text: c.tool, cls: '' };
-    const typeBadge = c.archive_type === 'full'
-      ? '<span class="tool-tag" style="background:rgba(74,222,128,.12);color:var(--green);">完整版</span>'
-      : '<span class="tool-tag" style="background:rgba(251,191,36,.12);color:var(--yellow);">摘要版</span>';
-    return `
-      <div class="conv-item" onclick="toggleConv(this)">
-        <div class="meta">
-          <span class="date">📅 ${c.date}</span>
-          <span class="tool-tag ${t.cls}">${t.text}</span>
-          ${typeBadge}
-          <span class="tool-tag" style="background:rgba(139,147,163,.1);color:var(--muted);">${c.file}</span>
-        </div>
-        <div class="title">${c.title}</div>
-        <div class="summary">${c.summary}</div>
-        <div class="expand">${c.detail}</div>
-      </div>`;
-  }).join('');
+
+  html += '<section><div class="sec-title">事实时间线 <span class="count">每次对话 = 一条事实</span></div>' +
+    '<div class="sec-sub">由自动归档实时写入，展开可看完整对话</div>';
+  html += '<div class="filters">' +
+    `<span class="filter${toolFilter === 'all' ? ' active' : ''}" data-tool="all">全部</span>` +
+    tools.map(t => `<span class="filter${toolFilter === t ? ' active' : ''}" data-tool="${esc(t)}">${esc(t)}</span>`).join('') +
+    '</div>';
+  html += '<div class="timeline">';
+  if (!facts.length) html += '<div class="empty">没有匹配的事实</div>';
+  facts.forEach((f, i) => {
+    const live = f.status === '进行中';
+    html += `<div class="t-item${live ? ' is-live' : ''}" data-i="${MEM.facts.indexOf(f)}" onclick="toggleFact(this)">` +
+      `<div class="t-head"><span class="t-date">${esc(f.date)}</span>` +
+      `<span class="t-src ${TOOL_CLASS[f.tool] || ''}">${esc(f.tool)}</span>` +
+      (live ? '<span class="t-live">进行中</span>' : '') +
+      `</div>` +
+      `<div class="t-topic">${esc(f.title)}</div>` +
+      `<div class="t-sum">${esc(f.summary)}</div>` +
+      `<div class="t-detail"><div class="hint">完整对话存档 · 点击收起</div><pre>${esc(f.detail)}</pre></div>` +
+      `</div>`;
+  });
+  html += '</div></section>';
+
+  // ---------- 稳定认知 ----------
+  const beliefs = MEM.beliefs.filter(b => matches(b.statement + b.detail + b.updated));
+  html += '<section><div class="sec-title">稳定认知 <span class="count">从对话中沉淀的结论</span></div>' +
+    '<div class="sec-sub">技术决策、踩坑经验、已确认的做法</div>' +
+    '<div class="belief-grid">';
+  if (!beliefs.length) html += '<div class="empty">没有匹配的认知</div>';
+  beliefs.forEach(b => {
+    html += `<div class="b-card"><p>${esc(b.title || b.statement)}</p>` +
+      (b.detail ? `<p>${esc(b.detail)}</p>` : '') +
+      `<div class="b-meta"><span>${esc(b.updated || '')}</span>` +
+      `<span class="b-conf">置信度 ${Math.round((b.confidence || 0) * 100)}%</span></div></div>`;
+  });
+  html += '</div></section>';
+
+  // ---------- 意图待办 ----------
+  const intents = MEM.intents.filter(i => matches(i.task));
+  html += '<section><div class="sec-title">意图待办 <span class="count">下一步要做的事</span></div>' +
+    '<div class="sec-sub">高优先级在前，已完成的会划线保留</div>';
+  if (!intents.length) html += '<div class="empty">没有匹配的待办</div>';
+  intents.forEach(t => {
+    const label = { high: '高', mid: '中', low: '低' }[t.priority] || t.priority;
+    html += `<div class="todo-item${t.done ? ' done' : ''}"><div class="box"></div>` +
+      `<div class="txt">${esc(t.task)}</div>` +
+      `<span class="prio ${esc(t.priority)}">${esc(label)}</span></div>`;
+  });
+  html += '</section>';
+
+  $('content').innerHTML = html;
+
+  document.querySelectorAll('.filter').forEach(el => {
+    el.addEventListener('click', () => {
+      toolFilter = el.dataset.tool;
+      renderContent();
+    });
+  });
 }
 
-function toggleConv(el) { el.classList.toggle('open'); }
+function toggleFact(el) { el.classList.toggle('open'); }
 
-function toggleAll() {
-  const items = document.querySelectorAll('.conv-item');
-  const allOpen = items.length > 0 && [...items].every(i => i.classList.contains('open'));
-  items.forEach(i => i.classList.toggle('open', !allOpen));
-}
-
-function renderDecisions() {
-  document.getElementById('decisionGrid').innerHTML = DATA.decisions.map(d => `
-    <div class="decision-card"><h4>💡 ${d.title}</h4><p>${d.content}</p></div>`).join('');
-}
-
-function renderTodos() {
-  const el = document.getElementById('todoList');
-  const groups = [
-    { key: 'high', label: '高优先级', cls: 'high' },
-    { key: 'mid', label: '中优先级', cls: 'mid' },
-    { key: 'low', label: '低优先级', cls: 'low' }
-  ];
-  el.innerHTML = groups.map(g => `
-    <div class="todo-card"><span class="priority ${g.cls}">${g.label}</span>
-      <ul>${(DATA.todos[g.key] || []).map(t => `<li>☐ ${t}</li>`).join('')}</ul>
-    </div>`).join('');
-}
-
-document.getElementById('searchInput').addEventListener('input', renderTimeline);
+let searchTimer = null;
+$('search').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    query = e.target.value.trim().toLowerCase();
+    render();
+  }, 120);
+});
 </script>
 </body>
 </html>
