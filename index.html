@@ -470,6 +470,16 @@ $('search').addEventListener('input', e => {
     render();
   }, 120);
 });
+
+// 可选：index.html#pw=密码 自动解锁（URL 片段不会发送到服务器）
+// 建议只在本地书签使用，公开场合请手动输入
+(function autoUnlockFromHash() {
+  const m = location.hash.match(/pw=([^&]+)/);
+  if (m) {
+    $('passwordInput').value = decodeURIComponent(m[1]);
+    unlock();
+  }
+})();
 </script>
 </body>
 </html>
