@@ -368,6 +368,14 @@ def main():
         "intents": intents,
     }
 
+    # 最后一道防线：历史存档或外部 agent 写入的内容可能带明文密码，推送前统一脱敏
+    try:
+        sys.path.insert(0, os.path.join(MEMORY_DIR, "tools"))
+        from sanitize_lib import sanitize_obj
+        data = sanitize_obj(data)
+    except Exception as e:
+        print(f"⚠️ 脱敏模块不可用，跳过：{e}")
+
     os.makedirs(PORTAL_DIR, exist_ok=True)
     with open(DATA_JSON, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
