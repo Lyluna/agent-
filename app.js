@@ -10,6 +10,7 @@
   var state = {
     view: 'overview',
     tool: 'all',
+    category: 'all',
     theme: 'light',
     paletteIndex: 0,
     paletteHits: []
@@ -305,20 +306,36 @@
 
   // ---------- 认知 ----------
   function renderBeliefs() {
-    var html = '<div class="sec-label"><h2>稳定认知</h2>' +
-      '<span class="count">' + MEM.beliefs.length + ' 条</span></div>';
-    html += '<p class="sec-note">技术决策、踩坑经验、已确认的做法。置信度由措辞判定：出现「定案/必须/禁止」为高。</p>';
+    var cats = MEM.beliefCategories || [];
+    var list = MEM.beliefs.filter(function (b) {
+      return state.category === 'all' || (b.category || '其他') === state.category;
+    });
 
-    if (!MEM.beliefs.length) {
-      html += '<div class="empty"><strong>还没有沉淀结论</strong>对话里出现定论时会自动记录。</div>';
+    var html = '<div class="sec-label"><h2>稳定认知</h2>' +
+      '<span class="count">' + list.length + ' 条</span></div>';
+    html += '<p class="sec-note">技术决策、踩坑经验、已确认的做法。分类写在 技术决策.md 每个标题下一行「分类：xxx」。</p>';
+
+    // 分类筛选
+    html += '<div class="chip-row cat-row">';
+    html += '<button class="chip" data-cat="all" aria-pressed="' +
+      (state.category === 'all') + '">全部<span class="c">' + MEM.beliefs.length + '</span></button>';
+    cats.forEach(function (c) {
+      html += '<button class="chip" data-cat="' + esc(c.name) + '" aria-pressed="' +
+        (state.category === c.name) + '">' + esc(c.name) +
+        '<span class="c">' + c.count + '</span></button>';
+    });
+    html += '</div>';
+
+    if (!list.length) {
+      html += '<div class="empty"><strong>这个分类下还没有结论</strong>换个分类看看。</div>';
     } else {
-      html += '<div class="beliefs">' + MEM.beliefs.map(function (b) {
+      html += '<div class="beliefs">' + list.map(function (b) {
         var conf = Math.round((b.confidence || 0) * 100);
         return '<div class="belief">' +
           '<div class="stmt">' + esc(b.title || b.statement) + '</div>' +
           (b.detail ? '<div class="det">' + esc(b.detail) + '</div>' : '') +
-          '<div class="foot"><span>' + esc(b.updated || '') + '</span>' +
-          '<span class="conf">' + conf + '%' +
+          '<div class="foot"><span class="cat">' + esc(b.category || '其他') + '</span>' +
+          '<span class="conf">' + esc(b.updated || '') + ' · ' + conf + '%' +
             '<span class="conf-track"><span class="conf-fill' +
             (conf >= 90 ? ' hi' : '') + '" style="width:' + conf + '%"></span></span>' +
           '</span></div>' +
@@ -327,38 +344,166 @@
     }
 
     $('view-beliefs').innerHTML = html;
+
+    Array.prototype.forEach.call(
+      $('view-beliefs').querySelectorAll('.chip'),
+      function (el) {
+        el.addEventListener('click', function () {
+          state.category = el.dataset.cat;
+          renderBeliefs();
+        });
+      }
+    );
   }
 
   // ---------- 待办 ----------
+  // 三态：待办 → 已完成（等确认有没有后续）→ 已结案
+  // 本地服务可写时，点「确认无后续」直接写回 markdown；
+  // 线上静态站降级为「复制结案指令」。
+  var canWrite = false;      // 由 detectWritable() 探测
+  var closedThisRun = {};    // 本次会话刚结案的，先乐观更新界面
+
   function intentRow(t) {
     var label = { high: '高', mid: '中', low: '低' }[t.priority] || t.priority || '';
-    return '<div class="intent' + (t.done ? ' done' : '') + '">' +
+    var closed = t.closed || closedThisRun[t.task];
+    var cls = 'intent' + (t.done ? ' done' : '') + (closed ? ' closed' : '');
+
+    var action = '';
+    if (t.done && !closed) {
+      action = canWrite
+        ? '<button class="close-btn" data-task="' + esc(t.task) + '">确认无后续</button>'
+        : '<button class="close-btn copy" data-task="' + esc(t.task) + '">复制结案指令</button>';
+    } else if (closed) {
+      action = '<span class="closed-tag">已结案' +
+        (t.closed_at ? ' ' + esc(t.closed_at) : '') + '</span>';
+    }
+
+    return '<div class="' + cls + '">' +
       '<div class="intent-box"></div>' +
-      '<div class="intent-text">' + esc(t.task) + '</div>' +
+      '<div class="intent-text">' + esc(t.task) + action + '</div>' +
       '<div class="intent-prio ' + esc(t.priority || '') + '">' + esc(label) + '</div>' +
     '</div>';
   }
 
   function renderIntents() {
     var pending = MEM.intents.filter(function (i) { return !i.done; });
-    var done = MEM.intents.filter(function (i) { return i.done; });
+    var confirm = MEM.intents.filter(function (i) {
+      return i.done && !i.closed && !closedThisRun[i.task];
+    });
+    var closed = MEM.intents.filter(function (i) {
+      return i.closed || closedThisRun[i.task];
+    });
 
     var html = '<div class="sec-label"><h2>意图待办</h2>' +
       '<span class="count">' + pending.length + ' 项未完成</span></div>';
-    html += '<p class="sec-note">高优先级在前，已完成的划线保留在下方。</p>';
+    html += '<p class="sec-note">' +
+      (confirm.length
+        ? '已完成的 ' + confirm.length + ' 项等你确认有没有后续；确认后归档不再提醒。'
+        : '完成的条目会先停在这里，等你确认有没有后续。') +
+      '</p>';
 
-    if (!pending.length && !done.length) {
+    if (!pending.length && !confirm.length && !closed.length) {
       html += '<div class="empty"><strong>没有待办</strong>有新计划时会出现在这里。</div>';
     } else {
       if (pending.length) html += '<div class="intents">' + pending.map(intentRow).join('') + '</div>';
-      if (done.length) {
-        html += '<div class="sec-label" style="margin-top:30px"><h2>已完成</h2>' +
-          '<span class="count">' + done.length + ' 项</span></div>';
-        html += '<div class="intents">' + done.map(intentRow).join('') + '</div>';
+
+      if (confirm.length) {
+        html += '<div class="sec-label" style="margin-top:30px"><h2>待确认结案</h2>' +
+          '<span class="count">' + confirm.length + ' 项</span></div>';
+        html += '<p class="sec-note">' +
+          (canWrite
+            ? '点「确认无后续」会直接改写待办与下一步.md 并重新加密数据。'
+            : '线上是静态站，点「复制结案指令」后粘给任意 AI 执行。') +
+          '</p>';
+        html += '<div class="intents">' + confirm.map(intentRow).join('') + '</div>';
+      }
+
+      if (closed.length) {
+        html += '<div class="sec-label" style="margin-top:30px"><h2>已结案</h2>' +
+          '<span class="count">' + closed.length + ' 项</span></div>';
+        html += '<div class="intents">' + closed.map(intentRow).join('') + '</div>';
       }
     }
 
     $('view-intents').innerHTML = html;
+    bindCloseButtons($('view-intents'));
+  }
+
+  function bindCloseButtons(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('.close-btn'), function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var task = btn.dataset.task;
+        if (canWrite) {
+          btn.disabled = true;
+          btn.textContent = '写入中…';
+          fetch('/api/close', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task: task })
+          }).then(function (r) { return r.json(); }).then(function (res) {
+            if (!res.ok) throw new Error(res.error || '写入失败');
+            closedThisRun[task] = true;
+            renderIntents();
+            renderRail();
+            renderHead();
+            if (!res.regenerated) console.warn('数据未重新生成：', res.log);
+          }).catch(function (err) {
+            btn.disabled = false;
+            btn.textContent = '确认无后续';
+            alert('写入失败：' + err.message);
+          });
+        } else {
+          copyCloseInstruction(task, btn);
+        }
+      });
+    });
+  }
+
+  function copyCloseInstruction(task, btn) {
+    var text = '把 08-AI记忆/待办与下一步.md 里这条待办标记为已结案' +
+      '（行尾追加 〔已结案 ' + todayStr() + '〕）：\n- ' + task;
+    var done = function () {
+      var old = btn.textContent;
+      btn.textContent = '已复制';
+      setTimeout(function () { btn.textContent = old; }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text, done); });
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { alert(text); }
+    document.body.removeChild(ta);
+  }
+
+  function todayStr() {
+    var d = new Date();
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  function detectWritable() {
+    if (!/^https?:$/.test(location.protocol)) return;
+    if (!/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) return;
+    fetch('/api/status', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (j && j.writable) {
+          canWrite = true;
+          if (state.view === 'intents') renderIntents();
+        }
+      })
+      .catch(function () {});
   }
 
   // ---------- 表格 ----------
@@ -606,27 +751,15 @@
     try {
       var data = await PortalCrypto.decryptPortal(pw, 'encrypted.bin');
 
-      MEM = data || {};
-      MEM.profile = MEM.profile || {};
-      MEM.facts = MEM.facts || [];
-      MEM.beliefs = MEM.beliefs || [];
-      MEM.intents = MEM.intents || [];
-      MEM.sections = MEM.sections || {};
-
+      adopt(data);
       INDEX = buildIndex();
 
       $('lock').style.display = 'none';
       $('app').classList.add('ready');
 
-      renderRail();
-      renderToolFilter();
-      renderOverview();
-      renderFacts();
-      renderBeliefs();
-      renderIntents();
-      renderSkills();
-      renderKnowledge();
+      renderAll();
       setView('overview');
+      detectWritable();
 
       input.value = '';
     } catch (e) {
@@ -642,6 +775,27 @@
   }
 
   // ---------- 启动 ----------
+  function adopt(data) {
+    MEM = data || {};
+    MEM.profile = MEM.profile || {};
+    MEM.facts = MEM.facts || [];
+    MEM.beliefs = MEM.beliefs || [];
+    MEM.beliefCategories = MEM.beliefCategories || [];
+    MEM.intents = MEM.intents || [];
+    MEM.sections = MEM.sections || {};
+  }
+
+  function renderAll() {
+    renderRail();
+    renderToolFilter();
+    renderOverview();
+    renderFacts();
+    renderBeliefs();
+    renderIntents();
+    renderSkills();
+    renderKnowledge();
+  }
+
   function init() {
     initTheme();
 
@@ -678,25 +832,14 @@
     fetch('data.json', { cache: 'no-cache' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        MEM = data;
-        MEM.profile = MEM.profile || {};
-        MEM.facts = MEM.facts || [];
-        MEM.beliefs = MEM.beliefs || [];
-        MEM.intents = MEM.intents || [];
-        MEM.sections = MEM.sections || {};
+        adopt(data);
         INDEX = buildIndex();
 
         $('lock').style.display = 'none';
         $('app').classList.add('ready');
-        renderRail();
-        renderToolFilter();
-        renderOverview();
-        renderFacts();
-        renderBeliefs();
-        renderIntents();
-        renderSkills();
-        renderKnowledge();
+        renderAll();
         setView(viewId || 'overview');
+        detectWritable();
         document.documentElement.setAttribute('data-shot', 'done');
       });
   }

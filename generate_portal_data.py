@@ -195,16 +195,20 @@ def load_facts():
 
 
 # ========== 稳定认知：技术决策 ==========
+DEFAULT_CATEGORY = "其他"
+
+
 def parse_beliefs():
     content = read_text(os.path.join(MEMORY_DIR, "技术决策.md"))
     _, body = parse_frontmatter(content)
     beliefs = []
     current_date = ""
     current = None
+    current_cat = ""
     buf = []
 
     def flush():
-        nonlocal current, buf
+        nonlocal current, current_cat, buf
         if current:
             detail_lines = [clean_inline(x) for x in buf if clean_inline(x)]
             detail = "；".join(detail_lines)[:260]
@@ -218,10 +222,11 @@ def parse_beliefs():
                 "statement": text,
                 "title": current,
                 "detail": detail,
+                "category": current_cat or DEFAULT_CATEGORY,
                 "updated": current_date,
                 "confidence": confidence,
             })
-        current, buf = None, []
+        current, current_cat, buf = None, "", []
 
     for line in body.splitlines():
         s = line.strip()
@@ -238,6 +243,11 @@ def parse_beliefs():
         if re.match(r"^##\s+", s):
             flush()
             continue
+        # 分类写在标题下一行：分类：账号运营
+        mcat = re.match(r"^分类[：:]\s*(.+)$", s)
+        if current and mcat:
+            current_cat = clean_inline(mcat.group(1), 20)
+            continue
         if current and s:
             buf.append(s)
     flush()
@@ -246,7 +256,25 @@ def parse_beliefs():
     return beliefs
 
 
+def belief_categories(beliefs):
+    """分类清单，按条目数降序；「其他」永远垫底。"""
+    counts = {}
+    for b in beliefs:
+        c = b.get("category") or DEFAULT_CATEGORY
+        counts[c] = counts.get(c, 0) + 1
+    order = sorted(counts.items(),
+                   key=lambda kv: (kv[0] == DEFAULT_CATEGORY, -kv[1], kv[0]))
+    return [{"name": k, "count": v} for k, v in order]
+
+
 # ========== 意图待办 ==========
+# 三态，靠 待办与下一步.md 的行尾标记区分：
+#   - [ ] 任务                        待办
+#   - [x] 任务                        已完成，等你确认有没有后续
+#   - [x] 任务 〔已结案 2026-10-22〕   已确认无后续，归档
+CLOSED_RE = re.compile(r"〔已结案\s*(\d{4}-\d{2}-\d{2})〕")
+
+
 def parse_intents():
     content = read_text(os.path.join(MEMORY_DIR, "待办与下一步.md"))
     _, body = parse_frontmatter(content)
@@ -265,13 +293,19 @@ def parse_intents():
         elif current:
             m = re.match(r"^-\s*\[( |x|X)\]\s*(.+)$", s)
             if m:
+                raw = m.group(2).strip()
+                mc = CLOSED_RE.search(raw)
                 intents.append({
-                    "task": clean_inline(m.group(2), 240),
+                    "task": clean_inline(CLOSED_RE.sub("", raw), 240),
                     "priority": current,
                     "done": m.group(1).lower() == "x",
+                    "closed": bool(mc),
+                    "closed_at": mc.group(1) if mc else "",
                 })
     order = {"high": 0, "mid": 1, "low": 2}
-    intents.sort(key=lambda i: (i["done"], order.get(i["priority"], 9)))
+    # 待办 → 待确认结案 → 已结案
+    intents.sort(key=lambda i: (
+        i["closed"], i["done"], order.get(i["priority"], 9)))
     return intents
 
 
@@ -397,11 +431,13 @@ def main():
     print(f"事实时间线：{len(facts)} 条（进行中 {in_progress}）")
 
     beliefs = parse_beliefs()
-    print(f"稳定认知：{len(beliefs)} 条")
+    cats = belief_categories(beliefs)
+    print(f"稳定认知：{len(beliefs)} 条（{len(cats)} 个分类）")
 
     intents = parse_intents()
     pending = sum(1 for i in intents if not i["done"])
-    print(f"意图待办：{len(intents)} 条（未完成 {pending}）")
+    to_confirm = sum(1 for i in intents if i["done"] and not i["closed"])
+    print(f"意图待办：{len(intents)} 条（未完成 {pending}，待确认结案 {to_confirm}）")
 
     profile = parse_profile()
     print(f"画像：{profile['name']} · {profile['role']}")
@@ -415,6 +451,7 @@ def main():
         "profile": profile,
         "facts": facts,
         "beliefs": beliefs,
+        "beliefCategories": cats,
         "intents": intents,
         "sections": sections,
     }
