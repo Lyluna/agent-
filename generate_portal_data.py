@@ -484,9 +484,9 @@ def main():
 
     try:
         subprocess.run(
+            # 注意：serve_portal.py 是本地可写服务，含写文件逻辑，**不上传**。
             ["git", "add", "index.html", "styles.css", "app.js", "crypto.js",
-             "serve_portal.py", "encrypted.bin", "generate_portal_data.py",
-             "README.md", ".gitignore"],
+             "encrypted.bin", "generate_portal_data.py", "README.md", ".gitignore"],
             cwd=PORTAL_DIR, check=True, capture_output=True, text=True)
         subprocess.run(
             ["git", "commit", "-m", f"portal update {data['updated']}"],
