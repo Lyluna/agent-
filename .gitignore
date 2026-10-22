@@ -7,6 +7,9 @@ portal_key.bak-*
 __pycache__/
 *.pyc
 
+# 本地可写服务：含写文件逻辑，只在本机跑，不上传
+serve_portal.py
+
 # 临时产物
 _pylibs/
 live_enc_check.bin
