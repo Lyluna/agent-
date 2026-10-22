@@ -40,6 +40,9 @@ PORTAL_DIR = os.path.join(VAULT, "记忆库门户")
 DATA_JSON = os.path.join(PORTAL_DIR, "data.json")
 ENC_BIN = os.path.join(PORTAL_DIR, "encrypted.bin")
 KEY_FILE = os.path.join(PORTAL_DIR, ".portal_key")
+SKILLS_DIR = os.path.join(VAULT, "09-技能库")
+TOOLS_DIR = os.path.join(VAULT, "10-工具库")
+DISTILL_DIR = os.path.join(VAULT, "11-蒸馏知识")
 
 # 仓库内自带的依赖目录（pycryptodome），保证换机器也能加密
 PYLIBS = os.path.join(PORTAL_DIR, "_pylibs")
@@ -343,6 +346,49 @@ def encrypt_data(plaintext: bytes, password: str) -> bytes:
 
 
 # ========== 主流程 ==========
+def parse_md_table_rows(path, section_title):
+    """读索引页指定章节下的第一个 Markdown 表格，返回 (表头, [{列名: 值}])。"""
+    content = read_text(path)
+    if not content:
+        return [], []
+    m = re.search(r"^##\s*" + re.escape(section_title) + r"\s*\n(.*?)(?=^##\s|\Z)",
+                  content, re.S | re.M)
+    if not m:
+        return [], []
+    header, rows = [], []
+    for line in m.group(1).splitlines():
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        cells = [clean_inline(c, 300) for c in s.strip("|").split("|")]
+        if not header:
+            header = cells
+            continue
+        if set("".join(cells)) <= set("-: "):
+            continue
+        if len(cells) != len(header):
+            continue
+        rows.append(dict(zip(header, cells)))
+    return header, rows
+
+
+def load_sections():
+    """技能库 / 工具库 / 蒸馏知识 三个板块的索引表格。"""
+    def one(dirpath, index_name, title):
+        path = os.path.join(dirpath, index_name)
+        header, rows = parse_md_table_rows(path, title)
+        # 跳过「（待登记）」「（待沉淀）」这类占位行
+        rows = [r for r in rows
+                if not all(("待" in v or not v) for v in list(r.values())[:2])]
+        return {"header": header, "rows": rows, "count": len(rows)}
+
+    return {
+        "skills": one(SKILLS_DIR, "技能库索引.md", "已登记技能"),
+        "tools": one(TOOLS_DIR, "工具库索引.md", "已登记工具"),
+        "distilled": one(DISTILL_DIR, "蒸馏知识索引.md", "知识条目"),
+    }
+
+
 def main():
     no_push = "--no-push" in sys.argv
 
@@ -360,12 +406,17 @@ def main():
     profile = parse_profile()
     print(f"画像：{profile['name']} · {profile['role']}")
 
+    sections = load_sections()
+    print(f"技能库：{sections['skills']['count']} 项 / 工具库：{sections['tools']['count']} 项 / "
+          f"蒸馏知识：{sections['distilled']['count']} 条")
+
     data = {
         "updated": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "profile": profile,
         "facts": facts,
         "beliefs": beliefs,
         "intents": intents,
+        "sections": sections,
     }
 
     # 最后一道防线：历史存档或外部 agent 写入的内容可能带明文密码，推送前统一脱敏
