@@ -6,7 +6,8 @@
   'use strict';
 
   // ---------- 状态 ----------
-  var MEM = { profile: {}, facts: [], beliefs: [], intents: [], sections: {} };
+  var MEM = { profile: {}, facts: [], beliefs: [], beliefCategories: [],
+              intents: [], sections: {} };
   var state = {
     view: 'overview',
     tool: 'all',
@@ -83,7 +84,7 @@
       overview: null,
       facts: MEM.facts.length,
       beliefs: MEM.beliefs.length,
-      intents: MEM.intents.filter(function (i) { return !i.done; }).length,
+      intents: MEM.intents.filter(isPending).length,
       skills: (MEM.sections.skills ? MEM.sections.skills.count : 0) +
               (MEM.sections.tools ? MEM.sections.tools.count : 0),
       knowledge: MEM.sections.distilled ? MEM.sections.distilled.count : 0
@@ -130,7 +131,7 @@
   // ---------- 页头：一句话说清这一屏在回答什么 ----------
   function renderHead() {
     var p = MEM.profile || {};
-    var pending = MEM.intents.filter(function (i) { return !i.done; });
+    var pending = MEM.intents.filter(isPending);
     var live = MEM.facts.filter(function (f) { return f.status === '进行中'; });
     var high = pending.filter(function (i) { return i.priority === 'high'; });
 
@@ -242,7 +243,9 @@
     }
 
     // 高优先级待办
-    var high = MEM.intents.filter(function (i) { return !i.done && i.priority === 'high'; }).slice(0, 5);
+    var high = MEM.intents.filter(function (i) {
+      return isPending(i) && i.priority === 'high';
+    }).slice(0, 5);
     if (high.length) {
       html += '<div class="sec-label" style="margin-top:34px"><h2>高优先级待办</h2>' +
         '<span class="count">' + high.length + ' 项</span></div>';
@@ -380,19 +383,21 @@
 
     return '<div class="' + cls + '">' +
       '<div class="intent-box"></div>' +
-      '<div class="intent-text">' + esc(t.task) + action + '</div>' +
+      '<div class="intent-text">' + esc(t.task) + '</div>' +
+      '<div class="intent-act">' + action + '</div>' +
       '<div class="intent-prio ' + esc(t.priority || '') + '">' + esc(label) + '</div>' +
     '</div>';
   }
 
+  // 三态互斥：已结案的不再出现在待办或待确认里
+  function isClosed(i) { return !!(i.closed || closedThisRun[i.task]); }
+  function isPending(i) { return !i.done && !isClosed(i); }
+  function isToConfirm(i) { return i.done && !isClosed(i); }
+
   function renderIntents() {
-    var pending = MEM.intents.filter(function (i) { return !i.done; });
-    var confirm = MEM.intents.filter(function (i) {
-      return i.done && !i.closed && !closedThisRun[i.task];
-    });
-    var closed = MEM.intents.filter(function (i) {
-      return i.closed || closedThisRun[i.task];
-    });
+    var pending = MEM.intents.filter(isPending);
+    var confirm = MEM.intents.filter(isToConfirm);
+    var closed = MEM.intents.filter(isClosed);
 
     var html = '<div class="sec-label"><h2>意图待办</h2>' +
       '<span class="count">' + pending.length + ' 项未完成</span></div>';
@@ -841,6 +846,10 @@
         setView(viewId || 'overview');
         detectWritable();
         document.documentElement.setAttribute('data-shot', 'done');
+      })
+      .catch(function () {
+        // 线上没有明文 data.json（已 gitignore），?shot= 落到这里就退回正常锁屏
+        document.documentElement.removeAttribute('data-shot');
       });
   }
 

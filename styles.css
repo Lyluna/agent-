@@ -387,6 +387,8 @@ kbd {
 }
 .chip .c { color: var(--faint); margin-left: 5px; font-variant-numeric: tabular-nums; }
 
+.cat-row { margin-bottom: 16px; }
+
 /* 分区 */
 .view { display: none; }
 .view.active { display: block; }
@@ -608,6 +610,13 @@ kbd {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.belief .foot .cat {
+  color: var(--signal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.belief .foot .conf { color: var(--faint); }
+
 .conf { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .conf-track {
   width: 32px; height: 2px;
@@ -626,7 +635,7 @@ kbd {
 
 .intent {
   display: grid;
-  grid-template-columns: 18px 1fr auto;
+  grid-template-columns: 18px 1fr auto auto;
   gap: 12px;
   align-items: start;
   padding: 11px 4px;
@@ -671,6 +680,51 @@ kbd {
   padding-top: 3px;
 }
 .intent-prio.high { color: var(--warn); }
+
+/* 待确认结案 */
+.intent-act { padding-top: 1px; }
+
+.close-btn {
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-family: inherit;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, border-color .12s;
+}
+.close-btn:hover { background: var(--raised); border-color: var(--muted); }
+.close-btn:disabled { opacity: .55; cursor: default; }
+.close-btn.copy { color: var(--muted); }
+
+/* 已结案：不再划线，整条压暗并标上日期 */
+.intent.closed .intent-box {
+  background: var(--raised);
+  border-color: var(--border);
+  position: relative;
+}
+.intent.closed .intent-box::after {
+  content: "";
+  position: absolute;
+  left: 3px; top: 6px;
+  width: 7px; height: 1px;
+  background: var(--faint);
+}
+.intent.closed .intent-text {
+  color: var(--faint);
+  text-decoration: none;
+}
+.closed-tag {
+  font-size: 11px;
+  color: var(--faint);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  padding-top: 4px;
+}
 
 /* ============================================================
    表格（技能 / 工具 / 蒸馏知识）
@@ -892,7 +946,10 @@ td.mono { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
   .table-wrap { overflow-x: auto; }
   table { min-width: 520px; }
 
-  .intent { grid-template-columns: 16px 1fr auto; gap: 10px; }
+  .intent { grid-template-columns: 16px 1fr auto; gap: 8px 10px; }
+  /* 窄屏：结案按钮换到正文下一行，避免挤压任务文字 */
+  .intent-act { grid-column: 2; padding-top: 0; }
+  .intent-prio { grid-column: 3; grid-row: 1; }
 
   #palette { padding-top: 0; }
   .palette-box { max-width: none; height: 100%; max-height: 100%; border-radius: 0; border: none; }

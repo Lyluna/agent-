@@ -44,10 +44,10 @@ Claude Code 通过全局 hooks 自动归档，配置在 `C:\Users\叶伟峰\.cla
 
 同步链路：
 1. `generate_portal_data.py` 生成 `data.json` + `encrypted.bin`，git push 更新 GitHub Pages
-2. `08-AI记忆\tools\sync_workbuddy_portal.py` 每小时检测 `encrypted.bin` 变化，同步到 `记忆库门户_deploy\`
+2. `08-AI记忆\tools\sync_workbuddy_portal.py` 每小时检测门户文件指纹变化，同步到 `记忆库门户_deploy\`
 3. WorkBuddy 自动化任务「WorkBuddy云端门户自动同步」检测到变化后重新部署云端
 
-> 部署目录 `记忆库门户_deploy\` 只含 `index.html`、`encrypted.bin`、`打开本地门户.bat`、`README.md`，**绝不含**明文 `data.json` 和密码 `.portal_key`。
+> 部署目录 `记忆库门户_deploy\` 只含前端四件套（`index.html`/`styles.css`/`app.js`/`crypto.js`）、`encrypted.bin`、`打开本地门户.bat`、`README.md`，**绝不含**明文 `data.json` 和密码 `.portal_key`，也不含 `serve_portal.py`（写入口只在本地用）。
 
 ## 本地预览
 
@@ -55,6 +55,39 @@ Claude Code 通过全局 hooks 自动归档，配置在 `C:\Users\叶伟峰\.cla
 （直接双击 `index.html` 时浏览器会因 file:// 限制无法读取 `encrypted.bin`。）
 
 在线地址：https://lyluna.github.io/agent-/
+
+## 待办结案：本地可写 / 线上只读
+
+门户是静态加密站，浏览器本身改不了文件，所以「确认无后续」分两条路：
+
+| 打开方式 | 按钮 | 行为 |
+| --- | --- | --- |
+| 本地 `127.0.0.1:8765`（`serve_portal.py`） | 确认无后续 | 直接写回 `08-AI记忆/待办与下一步.md`，行尾追加 `〔已结案 YYYY-MM-DD〕`，随后自动重新生成并加密数据 |
+| 线上 GitHub Pages | 复制结案指令 | 生成一段结案指令复制到剪贴板，粘给任意 AI 执行 |
+
+**为什么线上不能写**：GitHub Pages 没有后端，写文件需要 token 落在浏览器里，等于把仓库写权限公开。
+
+**安全边界**（`serve_portal.py`）：
+- 只监听 `127.0.0.1`，局域网其他机器连不上
+- 只接受同源 POST（校验 `Origin`/`Referer` 主机名），挡跨站伪造写入
+- 只改 `待办与下一步.md` 里精确匹配的那一行，不做模糊替换
+- 不读也不返回 `.portal_key`，密码始终只在浏览器内存里
+
+手动起服务：
+
+```bash
+python "C:\Users\叶伟峰\Documents\MyVault\记忆库门户\serve_portal.py" 8765
+```
+
+## 认知分类
+
+`技术决策.md` 里每个 `###` 标题下一行写 `分类：账号运营` 即可，生成器读它并做筛选按钮；没写的归到「其他」。
+
+```markdown
+### 小红书文案标准（复制即发级）
+分类：账号运营
+- 结构：标题 → 观点切入 → ...
+```
 
 ## 更新门户
 
@@ -78,10 +111,14 @@ python "C:\Users\叶伟峰\Documents\MyVault\记忆库门户\generate_portal_dat
 
 | 文件 | 说明 |
 | --- | --- |
-| `index.html` | 白色门户（密码锁 + 客户端解密 + 三板块视图） |
+| `index.html` | 页面骨架（密码锁 + 主界面 + 命令面板） |
+| `styles.css` | 全部样式与明暗主题 |
+| `app.js` | 视图渲染、命令面板、待办结案交互 |
+| `crypto.js` | 客户端解密（PBKDF2 + AES-GCM） |
+| `serve_portal.py` | 本地可写服务（静态文件 + `/api/close`） |
 | `encrypted.bin` | 加密后的记忆数据（上传到 GitHub） |
 | `data.json` | 明文数据（仅本地，gitignore） |
 | `generate_portal_data.py` | 生成 + 加密 + 推送脚本 |
-| `打开本地门户.bat` | 本地预览入口（自动起 HTTP 服务） |
+| `打开本地门户.bat` | 本地预览入口（自动起 `serve_portal.py`） |
 | `.portal_key` | 门户密码（仅本地，gitignore） |
 | `_pylibs/` | 自带的 pycryptodome，换机器也能加密 |
