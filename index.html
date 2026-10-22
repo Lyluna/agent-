@@ -3,534 +3,120 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="light">
-<title>共享记忆库 · 加密门户</title>
-<style>
-  :root {
-    --bg: #f7f7f5;
-    --surface: #ffffff;
-    --surface-2: #f1efe8;
-    --border: rgba(0,0,0,0.10);
-    --border-strong: rgba(0,0,0,0.18);
-    --text: #2c2c2a;
-    --text-2: #5f5e5a;
-    --text-3: #888780;
-    --accent: #534ab7;
-    --accent-soft: #eeedfe;
-    --teal: #0f6e56;
-    --teal-soft: #e1f5ee;
-    --amber: #854f0b;
-    --amber-soft: #faeeda;
-    --red: #a32d2d;
-    --red-soft: #fcebeb;
-    --radius: 12px;
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  html { background: var(--bg); }
-  body {
-    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.65;
-    min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
-  }
-  button, input { font-family: inherit; }
-
-  /* ---------- 锁屏 ---------- */
-  #lock {
-    min-height: 100vh;
-    display: flex; align-items: center; justify-content: center;
-    padding: 24px;
-  }
-  .lock-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 44px 36px;
-    width: 100%; max-width: 380px;
-    text-align: center;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.05);
-  }
-  .lock-icon {
-    width: 56px; height: 56px; margin: 0 auto 18px;
-    border-radius: 14px; background: var(--accent-soft);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .lock-icon svg { width: 26px; height: 26px; }
-  .lock-card h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; letter-spacing: .02em; }
-  .lock-card p { font-size: 13px; color: var(--text-2); margin-bottom: 26px; }
-  .lock-input {
-    width: 100%; padding: 12px 16px; font-size: 14px;
-    border: 1px solid var(--border); border-radius: 10px;
-    background: var(--surface-2); color: var(--text);
-    outline: none; margin-bottom: 12px; text-align: center; letter-spacing: .08em;
-  }
-  .lock-input:focus { border-color: var(--accent); background: var(--surface); }
-  .lock-btn {
-    width: 100%; padding: 12px; font-size: 14px; font-weight: 600;
-    color: #fff; background: var(--accent); border: none; border-radius: 10px;
-    cursor: pointer; transition: opacity .15s;
-  }
-  .lock-btn:hover { opacity: .9; }
-  .lock-btn:disabled { opacity: .5; cursor: wait; }
-  .lock-msg { font-size: 12px; color: var(--red); margin-top: 12px; min-height: 18px; }
-  .lock-hint { font-size: 11px; color: var(--text-3); margin-top: 16px; line-height: 1.5; }
-
-  /* ---------- 主界面 ---------- */
-  #app { display: none; }
-  .wrap { max-width: 920px; margin: 0 auto; padding: 36px 20px 72px; }
-
-  header {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
-  }
-  .brand h1 { font-size: 22px; font-weight: 600; letter-spacing: .02em; }
-  .brand h1 .dot { color: var(--accent); }
-  .brand p { font-size: 13px; color: var(--text-2); margin-top: 3px; }
-  .stats { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .chip {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 999px; padding: 6px 13px; font-size: 12px;
-    color: var(--text-2); white-space: nowrap;
-  }
-  .chip b { color: var(--text); font-weight: 600; margin-right: 4px; }
-  .chip.live { color: var(--teal); background: var(--teal-soft); border-color: transparent; }
-
-  .search {
-    width: 100%; padding: 11px 16px; font-size: 13px;
-    border: 1px solid var(--border); border-radius: 10px;
-    background: var(--surface); color: var(--text);
-    outline: none; margin-bottom: 30px;
-  }
-  .search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  .search::placeholder { color: var(--text-3); }
-
-  section { margin-bottom: 38px; }
-  .sec-title {
-    font-size: 14px; font-weight: 600; margin-bottom: 7px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .sec-title::before {
-    content: ""; width: 4px; height: 15px; border-radius: 2px; background: var(--accent);
-  }
-  .sec-title .count { font-size: 12px; color: var(--text-3); font-weight: 400; }
-  .sec-sub { font-size: 12px; color: var(--text-3); margin: 0 0 14px 12px; }
-
-  /* ---------- 画像 ---------- */
-  .profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-  .p-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 15px 17px; }
-  .p-card h3 { font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: .06em; margin-bottom: 8px; }
-  .p-card .val { font-size: 14px; color: var(--text); }
-  .p-card .sub { font-size: 12px; color: var(--text-2); margin-top: 3px; }
-  .p-card ul { list-style: none; }
-  .p-card li { font-size: 13px; color: var(--text-2); padding: 3px 0 3px 13px; position: relative; }
-  .p-card li::before {
-    content: ""; position: absolute; left: 0; top: 11px;
-    width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: .7;
-  }
-
-  /* ---------- 事实时间线 ---------- */
-  .filters { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 14px; }
-  .filter {
-    font-size: 12px; padding: 4px 11px; border-radius: 999px;
-    background: var(--surface); border: 1px solid var(--border);
-    color: var(--text-2); cursor: pointer; transition: all .15s;
-  }
-  .filter:hover { border-color: var(--accent); color: var(--accent); }
-  .filter.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-
-  .timeline { position: relative; padding-left: 20px; }
-  .timeline::before {
-    content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px;
-    width: 1px; background: var(--border-strong);
-  }
-  .t-item {
-    position: relative; padding: 13px 16px 13px 16px; margin-bottom: 9px;
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    cursor: pointer; transition: border-color .15s, box-shadow .15s;
-  }
-  .t-item:hover { border-color: var(--border-strong); box-shadow: 0 2px 10px rgba(0,0,0,.035); }
-  .t-item::before {
-    content: ""; position: absolute; left: -20px; top: 20px;
-    width: 9px; height: 9px; border-radius: 50%;
-    background: var(--accent); border: 2px solid var(--bg);
-  }
-  .t-item.is-live::before { background: var(--teal); }
-  .t-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
-  .t-date { font-size: 11.5px; color: var(--text-3); font-family: ui-monospace, "SF Mono", Consolas, monospace; }
-  .t-src {
-    font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 4px;
-    background: var(--teal-soft); color: var(--teal);
-  }
-  .t-src.WorkBuddy { background: var(--accent-soft); color: var(--accent); }
-  .t-src.opencode { background: #e6f4f1; color: #0b6b5f; }
-  .t-src.DeepSeek, .t-src\.DeepSeek { background: #eef1fb; color: #3b4fa8; }
-  .t-live { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 4px; background: var(--teal-soft); color: var(--teal); }
-  .t-topic { font-size: 14px; font-weight: 600; margin: 1px 0 2px; }
-  .t-sum { font-size: 13px; color: var(--text-2); }
-  .t-detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-strong); }
-  .t-item.open .t-detail { display: block; }
-  .t-detail pre {
-    font-family: inherit; font-size: 12.5px; color: var(--text-2);
-    white-space: pre-wrap; word-break: break-word;
-    max-height: 65vh; overflow: auto;
-  }
-  .t-detail .hint { font-size: 11px; color: var(--text-3); margin-bottom: 8px; }
-
-  /* ---------- 稳定认知 ---------- */
-  .belief-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-  .b-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 15px 17px;
-  }
-  .b-card p { font-size: 13px; color: var(--text); }
-  .b-card p + p { margin-top: 6px; color: var(--text-2); font-size: 12.5px; }
-  .b-meta {
-    display: flex; justify-content: space-between; align-items: center; gap: 8px;
-    font-size: 11px; color: var(--text-3); margin-top: 11px;
-  }
-  .b-conf { color: var(--amber); background: var(--amber-soft); border-radius: 4px; padding: 1px 7px; white-space: nowrap; }
-
-  /* ---------- 意图待办 ---------- */
-  .todo-item {
-    display: flex; align-items: flex-start; gap: 11px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 12px 15px; margin-bottom: 7px;
-  }
-  .todo-item .box {
-    width: 16px; height: 16px; flex-shrink: 0; margin-top: 3px;
-    border: 1.5px solid var(--text-3); border-radius: 5px;
-  }
-  .todo-item.done { opacity: .55; }
-  .todo-item.done .box { background: var(--teal); border-color: var(--teal); position: relative; }
-  .todo-item.done .box::after {
-    content: "✓"; position: absolute; inset: -2px 0 0 0;
-    color: #fff; font-size: 11px; text-align: center; line-height: 16px;
-  }
-  .todo-item.done .txt { text-decoration: line-through; }
-  .todo-item .txt { flex: 1; font-size: 13px; }
-  .prio { font-size: 10.5px; border-radius: 4px; padding: 1px 8px; flex-shrink: 0; margin-top: 3px; white-space: nowrap; }
-  .prio.high { color: var(--red); background: var(--red-soft); }
-  .prio.mid { color: var(--amber); background: var(--amber-soft); }
-  .prio.low { color: var(--text-3); background: var(--surface-2); }
-
-  /* ---------- 技能与工具 / 蒸馏知识 ---------- */
-  .tbl-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-  .tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  .tbl th {
-    text-align: left; font-weight: 600; font-size: 11.5px; color: var(--text-3);
-    padding: 9px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
-  .tbl td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); vertical-align: top; }
-  .tbl tr:last-child td { border-bottom: none; }
-  .tbl td:first-child { color: var(--text); font-weight: 500; white-space: nowrap; }
-  .tbl td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; word-break: break-all; }
-
-  .empty { font-size: 13px; color: var(--text-3); padding: 22px 0; text-align: center; }
-
-  footer { margin-top: 44px; text-align: center; font-size: 12px; color: var(--text-3); }
-  footer .enc {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: var(--teal-soft); color: var(--teal);
-    border-radius: 999px; padding: 4px 12px; margin-bottom: 8px; font-size: 11.5px;
-  }
-
-  @media (max-width: 640px) {
-    .wrap { padding: 24px 16px 56px; }
-    .lock-card { padding: 36px 24px; }
-    .t-item { padding: 12px 13px; }
-  }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-</style>
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="跨 agent 共享记忆库 · 客户端解密的加密门户">
+<title>共享记忆库</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<!-- 密码锁屏 -->
+<!-- ============================================================
+     锁屏
+     ============================================================ -->
 <div id="lock">
-  <div class="lock-card">
-    <div class="lock-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#534ab7" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4" y="10" width="16" height="11" rx="2.5"/>
-        <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
-        <circle cx="12" cy="15.5" r="1.2"/>
-      </svg>
-    </div>
+  <div class="lock-panel">
+    <svg class="lock-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3.5" y="10.5" width="17" height="10.5" rx="2"/>
+      <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/>
+      <circle cx="12" cy="15.75" r="1.1" fill="currentColor" stroke="none"/>
+    </svg>
+
     <h1>共享记忆库</h1>
-    <p>内容已加密 · 输入访问密码解锁</p>
-    <input class="lock-input" id="passwordInput" type="password" placeholder="访问密码" autocomplete="current-password">
-    <button class="lock-btn" id="unlockBtn" onclick="unlock()">解密进入</button>
-    <div class="lock-msg" id="lockErr"></div>
-    <div class="lock-hint">AES-256-GCM 客户端解密<br>服务端只保存密文</div>
+    <p class="lede">内容以 AES-256-GCM 加密，密码只在本机浏览器里使用。</p>
+
+    <label class="visually-hidden" for="passwordInput" style="position:absolute;left:-9999px">访问密码</label>
+    <input class="field" id="passwordInput" type="password" placeholder="访问密码"
+           autocomplete="current-password" spellcheck="false">
+    <button class="btn btn-block" id="unlockBtn">解密进入</button>
+    <div class="lock-err" id="lockErr" role="alert"></div>
+
+    <p class="lock-foot">
+      服务端只保存密文。密码不发送、不记录、不缓存。<br>
+      密文文件 encrypted.bin · 解密全部在浏览器完成
+    </p>
   </div>
 </div>
 
-<!-- 主界面 -->
+<!-- ============================================================
+     主界面
+     ============================================================ -->
 <div id="app">
-  <div class="wrap">
-    <header>
-      <div class="brand">
-        <h1>共享记忆库<span class="dot">.</span></h1>
-        <p id="updated">所有 agent 共享的单一记忆源</p>
+
+  <aside class="rail">
+    <div class="rail-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3.5" y="10.5" width="17" height="10.5" rx="2"/>
+        <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/>
+      </svg>
+      <span>记忆库</span>
+    </div>
+
+    <nav class="rail-nav" id="railNav" aria-label="分区"></nav>
+
+    <div class="rail-foot">
+      <div class="kbd-hint">
+        <kbd>⌘</kbd><kbd>K</kbd>
+        <span>搜索全部</span>
       </div>
-      <div class="stats" id="stats"></div>
+      <button class="theme-toggle" id="themeBtn" aria-label="切换主题">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.5"/>
+          <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/>
+        </svg>
+        <span id="themeLabel">浅色</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="canvas">
+    <header class="page-head">
+      <h1 id="pageTitle">概览</h1>
+      <p class="finding" id="pageFinding"></p>
+      <div class="meta" id="pageMeta"></div>
     </header>
 
-    <input class="search" id="search" type="text" placeholder="搜索事实、认知、待办…">
+    <div class="toolbar">
+      <button class="search-btn" id="searchBtn" aria-label="打开搜索">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.5"/>
+          <path d="M16 16l4.5 4.5"/>
+        </svg>
+        <span id="searchLabel">搜索事实、认知、待办</span>
+        <span class="k kbd-hint"><kbd>⌘</kbd><kbd>K</kbd></span>
+      </button>
+      <div class="chip-row" id="toolFilter"></div>
+    </div>
 
-    <div id="content"></div>
+    <section class="view" id="view-overview"></section>
+    <section class="view" id="view-facts"></section>
+    <section class="view" id="view-beliefs"></section>
+    <section class="view" id="view-intents"></section>
+    <section class="view" id="view-skills"></section>
+    <section class="view" id="view-knowledge"></section>
+  </main>
+</div>
 
-    <footer>
-      <div class="enc">AES-256-GCM 端到端加密 · 密码只存在于本地</div>
-      <div>memory-core · Markdown 为唯一真相源 · 事实 / 认知 / 意图 三层记忆</div>
-    </footer>
+<!-- ============================================================
+     命令面板
+     ============================================================ -->
+<div id="palette" role="dialog" aria-modal="true" aria-label="搜索">
+  <div class="palette-box">
+    <input class="palette-input" id="paletteInput" type="text"
+           placeholder="搜索事实、认知、待办、技能、工具、知识…" autocomplete="off" spellcheck="false">
+    <div class="palette-list" id="paletteList" role="listbox"></div>
+    <div class="palette-foot">
+      <span><kbd>↑</kbd><kbd>↓</kbd> 选择</span>
+      <span><kbd>↵</kbd> 打开</span>
+      <span><kbd>esc</kbd> 关闭</span>
+    </div>
   </div>
 </div>
 
-<script>
-// ========== 加密参数（与 generate_portal_data.py 一致）==========
-const PBKDF2_ITERATIONS = 310000;
-const SALT_LEN = 16, IV_LEN = 12, TAG_LEN = 16;
-
-let MEM = { profile: {}, facts: [], beliefs: [], intents: [], sections: {} };
-let query = '';
-let toolFilter = 'all';
-
-const TOOL_CLASS = {
-  'Claude Code': 'Claude', 'WorkBuddy': 'WorkBuddy', 'opencode': 'opencode',
-  'DeepSeek': 'DeepSeek', 'DeepSeek Harness': 'DeepSeek', 'Obsidian AI': 'Claude'
-};
-
-function $(id) { return document.getElementById(id); }
-function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-  ));
-}
-function matches(s) { return !query || String(s || '').toLowerCase().includes(query); }
-
-// ========== 解密 ==========
-async function deriveKey(password, salt) {
-  const enc = new TextEncoder();
-  const km = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
-    km, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
-  );
-}
-
-async function unlock() {
-  const input = $('passwordInput'), err = $('lockErr'), btn = $('unlockBtn');
-  const password = input.value;
-  if (!password) { err.textContent = '请输入密码'; return; }
-  btn.disabled = true; btn.textContent = '解密中…'; err.textContent = '';
-
-  try {
-    const resp = await fetch('encrypted.bin', { cache: 'no-cache' });
-    if (!resp.ok) throw new Error('无法获取加密数据文件');
-    const buf = new Uint8Array(await resp.arrayBuffer());
-    if (buf.length < SALT_LEN + IV_LEN + TAG_LEN + 1) throw new Error('数据文件格式错误');
-    const salt = buf.slice(0, SALT_LEN);
-    const iv = buf.slice(SALT_LEN, SALT_LEN + IV_LEN);
-    const tag = buf.slice(SALT_LEN + IV_LEN, SALT_LEN + IV_LEN + TAG_LEN);
-    const ct = buf.slice(SALT_LEN + IV_LEN + TAG_LEN);
-
-    const key = await deriveKey(password, salt);
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv, tagLength: 128 }, key, concat(ct, tag)
-    );
-    MEM = JSON.parse(new TextDecoder().decode(decrypted));
-    MEM.profile = MEM.profile || {};
-    MEM.facts = MEM.facts || [];
-    MEM.beliefs = MEM.beliefs || [];
-    MEM.intents = MEM.intents || [];
-
-    $('lock').style.display = 'none';
-    $('app').style.display = 'block';
-    $('updated').textContent = '更新于 ' + (MEM.updated || '-');
-    render();
-  } catch (e) {
-    console.error(e);
-    err.textContent = '密码错误或数据损坏，请重试';
-  } finally {
-    btn.disabled = false; btn.textContent = '解密进入';
-  }
-}
-
-function concat(a, b) {
-  const out = new Uint8Array(a.length + b.length);
-  out.set(a, 0); out.set(b, a.length);
-  return out;
-}
-
-$('passwordInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
-
-// ========== 渲染 ==========
-function render() {
-  renderStats();
-  renderContent();
-}
-
-function renderStats() {
-  const facts = MEM.facts.filter(f => matches(f.title + f.summary + f.detail + f.tool));
-  const beliefs = MEM.beliefs.filter(b => matches(b.statement + b.detail));
-  const intents = MEM.intents.filter(i => matches(i.task));
-  const pending = intents.filter(i => !i.done).length;
-  const live = MEM.facts.filter(f => f.status === '进行中').length;
-  $('stats').innerHTML =
-    `<span class="chip"><b>${MEM.facts.length}</b>条事实</span>` +
-    `<span class="chip"><b>${MEM.beliefs.length}</b>条认知</span>` +
-    `<span class="chip"><b>${pending}</b>项待办</span>` +
-    (live ? `<span class="chip live">${live} 个对话进行中</span>` : '');
-}
-
-function renderContent() {
-  let html = '';
-
-  // ---------- 画像 ----------
-  const p = MEM.profile || {};
-  html += '<section><div class="sec-title">画像 <span class="count">跨 agent 共享</span></div>' +
-    '<div class="sec-sub">你是谁、用什么工具、希望 AI 怎么配合你</div>' +
-    '<div class="profile-grid">';
-  html += `<div class="p-card"><h3>基本信息</h3><div class="val">${esc(p.name || '-')}</div>` +
-    `<div class="sub">${esc(p.role || '')}</div></div>`;
-  html += `<div class="p-card"><h3>接入工具</h3><ul>` +
-    (p.tools || []).map(t => `<li>${esc(t.name)} — ${esc(t.usage)}</li>`).join('') +
-    `</ul></div>`;
-  html += `<div class="p-card"><h3>沟通偏好</h3><ul>` +
-    (p.preferences || []).map(x => `<li>${esc(x)}</li>`).join('') +
-    `</ul></div>`;
-  html += `<div class="p-card"><h3>记忆规则</h3><ul>` +
-    (p.rules || []).map(x => `<li>${esc(x)}</li>`).join('') +
-    `</ul></div>`;
-  html += '</div></section>';
-
-  // ---------- 事实时间线 ----------
-  const tools = [...new Set(MEM.facts.map(f => f.tool))];
-  let facts = MEM.facts.filter(f => {
-    const okTool = toolFilter === 'all' || f.tool === toolFilter;
-    const okSearch = matches(f.title + f.summary + f.detail + f.tool + f.date);
-    return okTool && okSearch;
-  });
-
-  html += '<section><div class="sec-title">事实时间线 <span class="count">每次对话 = 一条事实</span></div>' +
-    '<div class="sec-sub">由自动归档实时写入，展开可看完整对话</div>';
-  html += '<div class="filters">' +
-    `<span class="filter${toolFilter === 'all' ? ' active' : ''}" data-tool="all">全部</span>` +
-    tools.map(t => `<span class="filter${toolFilter === t ? ' active' : ''}" data-tool="${esc(t)}">${esc(t)}</span>`).join('') +
-    '</div>';
-  html += '<div class="timeline">';
-  if (!facts.length) html += '<div class="empty">没有匹配的事实</div>';
-  facts.forEach((f, i) => {
-    const live = f.status === '进行中';
-    html += `<div class="t-item${live ? ' is-live' : ''}" data-i="${MEM.facts.indexOf(f)}" onclick="toggleFact(this)">` +
-      `<div class="t-head"><span class="t-date">${esc(f.date)}</span>` +
-      `<span class="t-src ${TOOL_CLASS[f.tool] || ''}">${esc(f.tool)}</span>` +
-      (live ? '<span class="t-live">进行中</span>' : '') +
-      `</div>` +
-      `<div class="t-topic">${esc(f.title)}</div>` +
-      `<div class="t-sum">${esc(f.summary)}</div>` +
-      `<div class="t-detail"><div class="hint">完整对话存档 · 点击收起</div><pre>${esc(f.detail)}</pre></div>` +
-      `</div>`;
-  });
-  html += '</div></section>';
-
-  // ---------- 稳定认知 ----------
-  const beliefs = MEM.beliefs.filter(b => matches(b.statement + b.detail + b.updated));
-  html += '<section><div class="sec-title">稳定认知 <span class="count">从对话中沉淀的结论</span></div>' +
-    '<div class="sec-sub">技术决策、踩坑经验、已确认的做法</div>' +
-    '<div class="belief-grid">';
-  if (!beliefs.length) html += '<div class="empty">没有匹配的认知</div>';
-  beliefs.forEach(b => {
-    html += `<div class="b-card"><p>${esc(b.title || b.statement)}</p>` +
-      (b.detail ? `<p>${esc(b.detail)}</p>` : '') +
-      `<div class="b-meta"><span>${esc(b.updated || '')}</span>` +
-      `<span class="b-conf">置信度 ${Math.round((b.confidence || 0) * 100)}%</span></div></div>`;
-  });
-  html += '</div></section>';
-
-  // ---------- 意图待办 ----------
-  const intents = MEM.intents.filter(i => matches(i.task));
-  html += '<section><div class="sec-title">意图待办 <span class="count">下一步要做的事</span></div>' +
-    '<div class="sec-sub">高优先级在前，已完成的会划线保留</div>';
-  if (!intents.length) html += '<div class="empty">没有匹配的待办</div>';
-  intents.forEach(t => {
-    const label = { high: '高', mid: '中', low: '低' }[t.priority] || t.priority;
-    html += `<div class="todo-item${t.done ? ' done' : ''}"><div class="box"></div>` +
-      `<div class="txt">${esc(t.task)}</div>` +
-      `<span class="prio ${esc(t.priority)}">${esc(label)}</span></div>`;
-  });
-  html += '</section>';
-
-  // ---------- 技能与工具 ----------
-  const SEC = MEM.sections || {};
-  function renderTable(sec, note) {
-    if (!sec || !sec.rows || !sec.rows.length) {
-      return '<div class="empty">暂无条目</div>';
-    }
-    const cols = sec.header;
-    let t = '<div class="tbl-wrap"><table class="tbl"><thead><tr>' +
-      cols.map(c => `<th>${esc(c)}</th>`).join('') + '</tr></thead><tbody>';
-    sec.rows.forEach(r => {
-      t += '<tr>' + cols.map((c, i) =>
-        `<td class="${i === 2 && /路径|文件/.test(c) ? 'mono' : ''}">${esc(r[c] || '')}</td>`
-      ).join('') + '</tr>';
-    });
-    return t + '</tbody></table></div>' + (note ? `<div class="sec-sub" style="margin-top:8px">${note}</div>` : '');
-  }
-
-  const skills = SEC.skills || { rows: [], header: [] };
-  const toolSec = SEC.tools || { rows: [], header: [] };
-  const skillRows = skills.rows.filter(r => matches(JSON.stringify(r)));
-  const toolRows = toolSec.rows.filter(r => matches(JSON.stringify(r)));
-
-  html += '<section><div class="sec-title">技能与工具 <span class="count">可复用的能力</span></div>' +
-    '<div class="sec-sub">技能 = 怎么做；工具 = 拿来就能跑</div>' +
-    '<h3 style="font-size:13px;color:var(--text-2);margin:14px 0 8px">🧩 技能库</h3>' +
-    renderTable({ ...skills, rows: skillRows }) +
-    '<h3 style="font-size:13px;color:var(--text-2);margin:20px 0 8px">🛠️ 工具库</h3>' +
-    renderTable({ ...toolSec, rows: toolRows }) +
-    '</section>';
-
-  // ---------- 蒸馏知识 ----------
-  const dist = SEC.distilled || { rows: [], header: [] };
-  const distRows = dist.rows.filter(r => matches(JSON.stringify(r)));
-  html += '<section><div class="sec-title">蒸馏知识 <span class="count">提炼后的可复用结论</span></div>' +
-    '<div class="sec-sub">项目过程记在项目笔记，这里只留能换场景复用的判断</div>' +
-    renderTable({ ...dist, rows: distRows }) +
-    '</section>';
-
-  $('content').innerHTML = html;
-
-  document.querySelectorAll('.filter').forEach(el => {
-    el.addEventListener('click', () => {
-      toolFilter = el.dataset.tool;
-      renderContent();
-    });
-  });
-}
-
-function toggleFact(el) { el.classList.toggle('open'); }
-
-let searchTimer = null;
-$('search').addEventListener('input', e => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    query = e.target.value.trim().toLowerCase();
-    render();
-  }, 120);
-});
-
-// 可选：index.html#pw=密码 自动解锁（URL 片段不会发送到服务器）
-// 建议只在本地书签使用，公开场合请手动输入
-(function autoUnlockFromHash() {
-  const m = location.hash.match(/pw=([^&]+)/);
-  if (m) {
-    $('passwordInput').value = decodeURIComponent(m[1]);
-    unlock();
-  }
-})();
-</script>
+<script src="crypto.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
