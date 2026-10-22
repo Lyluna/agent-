@@ -1,8 +1,15 @@
 # 明文数据与密钥——绝不提交
 data.json
 .portal_key
+.portal_key.bak-*
+portal_key.bak-*
+*.bak
 __pycache__/
 *.pyc
+
+# 临时产物
+_pylibs/
+live_enc_check.bin
 
 # WorkBuddy 后台产物（禁止提交）
 data.enc
