@@ -644,9 +644,20 @@ kbd {
 .intent-box {
   width: 15px; height: 15px;
   margin-top: 2px;
+  padding: 0;
+  background: var(--surface);
   border: 1.5px solid var(--control);
   border-radius: 4px;
   flex-shrink: 0;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.intent-box:hover { border-color: var(--muted); }
+.intent-box:disabled { cursor: default; }
+.intent-box.flash,
+.close-btn.flash {
+  border-color: var(--signal);
+  box-shadow: 0 0 0 3px var(--signal-soft);
 }
 .intent.done .intent-box {
   background: var(--signal);

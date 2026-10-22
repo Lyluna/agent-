@@ -60,10 +60,19 @@ Claude Code 通过全局 hooks 自动归档，配置在 `C:\Users\叶伟峰\.cla
 
 门户是静态加密站，浏览器本身改不了文件，所以「确认无后续」分两条路：
 
-| 打开方式 | 按钮 | 行为 |
+| 打开方式 | 行为 |
+| --- | --- |
+| 本地 `127.0.0.1:8765`（`serve_portal.py`） | 点复选框直接写回 `08-AI记忆/待办与下一步.md`，随后自动重新生成并加密数据 |
+| 线上 GitHub Pages | 点复选框复制一条指令到剪贴板，粘给任意 AI 执行 |
+
+四个动作，点复选框和按钮都能触发：
+
+| 动作 | 触发位置 | 写回结果 |
 | --- | --- | --- |
-| 本地 `127.0.0.1:8765`（`serve_portal.py`） | 确认无后续 | 直接写回 `08-AI记忆/待办与下一步.md`，行尾追加 `〔已结案 YYYY-MM-DD〕`，随后自动重新生成并加密数据 |
-| 线上 GitHub Pages | 复制结案指令 | 生成一段结案指令复制到剪贴板，粘给任意 AI 执行 |
+| 标记为已完成 | 未完成条目的复选框 | `- [ ]` → `- [x]` |
+| 改回未完成 | 已完成条目的复选框 | `- [x]` → `- [ ]`（顺带取消结案） |
+| 确认无后续 | 「待确认结案」区的按钮 | 行尾追加 `〔已结案 YYYY-MM-DD〕` |
+| 撤销结案 | 已结案条目的复选框 | 去掉 `〔已结案 …〕`，回到已完成 |
 
 **为什么线上不能写**：GitHub Pages 没有后端，写文件需要 token 落在浏览器里，等于把仓库写权限公开。
 
@@ -72,6 +81,10 @@ Claude Code 通过全局 hooks 自动归档，配置在 `C:\Users\叶伟峰\.cla
 - 只接受同源 POST（校验 `Origin`/`Referer` 主机名），挡跨站伪造写入
 - 只改 `待办与下一步.md` 里精确匹配的那一行，不做模糊替换
 - 不读也不返回 `.portal_key`，密码始终只在浏览器内存里
+- **不上传**：含写文件逻辑，已在 `.gitignore`，只在本机跑
+
+接口：`POST /api/status`，请求体 `{"task": "...", "action": "done|undone|close|reopen"}`。
+`/api/close` 是 `action=close` 的旧路径别名。
 
 手动起服务：
 
@@ -115,7 +128,7 @@ python "C:\Users\叶伟峰\Documents\MyVault\记忆库门户\generate_portal_dat
 | `styles.css` | 全部样式与明暗主题 |
 | `app.js` | 视图渲染、命令面板、待办结案交互 |
 | `crypto.js` | 客户端解密（PBKDF2 + AES-GCM） |
-| `serve_portal.py` | 本地可写服务（静态文件 + `/api/close`） |
+| `serve_portal.py` | 本地可写服务（静态文件 + `/api/status`），不上传 |
 | `encrypted.bin` | 加密后的记忆数据（上传到 GitHub） |
 | `data.json` | 明文数据（仅本地，gitignore） |
 | `generate_portal_data.py` | 生成 + 加密 + 推送脚本 |

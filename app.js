@@ -361,38 +361,51 @@
 
   // ---------- 待办 ----------
   // 三态：待办 → 已完成（等确认有没有后续）→ 已结案
-  // 本地服务可写时，点「确认无后续」直接写回 markdown；
-  // 线上静态站降级为「复制结案指令」。
-  var canWrite = false;      // 由 detectWritable() 探测
-  var closedThisRun = {};    // 本次会话刚结案的，先乐观更新界面
+  // 本地服务可写时，点击直接写回 markdown；线上静态站降级为复制指令。
+  var canWrite = false;   // 由 detectWritable() 探测
+  var override = {};      // task -> {done, closed}，本次会话的乐观状态
+
+  function eff(i, key) {
+    var o = override[i.task];
+    if (o && key in o) return o[key];
+    return key === 'closed' ? !!i.closed : !!i.done;
+  }
+  function isClosed(i) { return eff(i, 'closed'); }
+  function isDone(i) { return eff(i, 'done'); }
+  function isPending(i) { return !isDone(i) && !isClosed(i); }
+  function isToConfirm(i) { return isDone(i) && !isClosed(i); }
 
   function intentRow(t) {
     var label = { high: '高', mid: '中', low: '低' }[t.priority] || t.priority || '';
-    var closed = t.closed || closedThisRun[t.task];
-    var cls = 'intent' + (t.done ? ' done' : '') + (closed ? ' closed' : '');
+    var done = isDone(t);
+    var closed = isClosed(t);
+    var cls = 'intent' + (done ? ' done' : '') + (closed ? ' closed' : '');
+
+    // 复选框本身可点：未完成 ↔ 已完成
+    var boxTitle = closed ? '撤销结案'
+      : done ? '改回未完成'
+      : '标记为已完成';
+    var box = '<button class="intent-box" data-task="' + esc(t.task) + '" ' +
+      'data-action="' + (done ? (closed ? 'reopen' : 'undone') : 'done') + '" ' +
+      'aria-label="' + esc(boxTitle) + '" title="' + esc(boxTitle) + '"></button>';
 
     var action = '';
-    if (t.done && !closed) {
-      action = canWrite
-        ? '<button class="close-btn" data-task="' + esc(t.task) + '">确认无后续</button>'
-        : '<button class="close-btn copy" data-task="' + esc(t.task) + '">复制结案指令</button>';
-    } else if (closed) {
+    if (closed) {
       action = '<span class="closed-tag">已结案' +
         (t.closed_at ? ' ' + esc(t.closed_at) : '') + '</span>';
+    } else if (done) {
+      action = canWrite
+        ? '<button class="close-btn" data-task="' + esc(t.task) + '" data-action="close">确认无后续</button>'
+        : '<button class="close-btn copy" data-task="' + esc(t.task) + '" data-action="close">复制结案指令</button>';
     }
 
     return '<div class="' + cls + '">' +
-      '<div class="intent-box"></div>' +
+      box +
       '<div class="intent-text">' + esc(t.task) + '</div>' +
       '<div class="intent-act">' + action + '</div>' +
       '<div class="intent-prio ' + esc(t.priority || '') + '">' + esc(label) + '</div>' +
     '</div>';
   }
-
-  // 三态互斥：已结案的不再出现在待办或待确认里
-  function isClosed(i) { return !!(i.closed || closedThisRun[i.task]); }
-  function isPending(i) { return !i.done && !isClosed(i); }
-  function isToConfirm(i) { return i.done && !isClosed(i); }
 
   function renderIntents() {
     var pending = MEM.intents.filter(isPending);
@@ -402,9 +415,8 @@
     var html = '<div class="sec-label"><h2>意图待办</h2>' +
       '<span class="count">' + pending.length + ' 项未完成</span></div>';
     html += '<p class="sec-note">' +
-      (confirm.length
-        ? '已完成的 ' + confirm.length + ' 项等你确认有没有后续；确认后归档不再提醒。'
-        : '完成的条目会先停在这里，等你确认有没有后续。') +
+      (canWrite ? '点复选框标记完成或改回；已完成的需要你确认「没有后续」才会归档。'
+                : '线上是只读的：点复选框或按钮会复制一条指令，粘给任意 AI 执行。') +
       '</p>';
 
     if (!pending.length && !confirm.length && !closed.length) {
@@ -415,11 +427,7 @@
       if (confirm.length) {
         html += '<div class="sec-label" style="margin-top:30px"><h2>待确认结案</h2>' +
           '<span class="count">' + confirm.length + ' 项</span></div>';
-        html += '<p class="sec-note">' +
-          (canWrite
-            ? '点「确认无后续」会直接改写待办与下一步.md 并重新加密数据。'
-            : '线上是静态站，点「复制结案指令」后粘给任意 AI 执行。') +
-          '</p>';
+        html += '<p class="sec-note">做完的条目先停这里。确认没有后续就点「确认无后续」，之后不再提醒。</p>';
         html += '<div class="intents">' + confirm.map(intentRow).join('') + '</div>';
       }
 
@@ -431,47 +439,89 @@
     }
 
     $('view-intents').innerHTML = html;
-    bindCloseButtons($('view-intents'));
+    bindIntentActions($('view-intents'));
   }
 
-  function bindCloseButtons(root) {
-    Array.prototype.forEach.call(root.querySelectorAll('.close-btn'), function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var task = btn.dataset.task;
-        if (canWrite) {
-          btn.disabled = true;
-          btn.textContent = '写入中…';
-          fetch('/api/close', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ task: task })
-          }).then(function (r) { return r.json(); }).then(function (res) {
-            if (!res.ok) throw new Error(res.error || '写入失败');
-            closedThisRun[task] = true;
-            renderIntents();
-            renderRail();
-            renderHead();
-            if (!res.regenerated) console.warn('数据未重新生成：', res.log);
-          }).catch(function (err) {
-            btn.disabled = false;
-            btn.textContent = '确认无后续';
-            alert('写入失败：' + err.message);
-          });
-        } else {
-          copyCloseInstruction(task, btn);
-        }
-      });
+  // 统一处理复选框和结案按钮：本地写文件，线上复制指令
+  function bindIntentActions(root) {
+    Array.prototype.forEach.call(
+      root.querySelectorAll('[data-task][data-action]'),
+      function (el) {
+        el.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var task = el.dataset.task;
+          var action = el.dataset.action;
+          if (canWrite) {
+            writeStatus(task, action, el);
+          } else {
+            copyInstruction(task, action, el);
+          }
+        });
+      }
+    );
+  }
+
+  function writeStatus(task, action, el) {
+    var restore = el.textContent;
+    if (el.classList.contains('close-btn')) {
+      el.disabled = true;
+      el.textContent = '写入中…';
+    }
+    fetch('/api/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task: task, action: action })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || '写入失败');
+      applyOverride(task, action);
+      renderIntents();
+      renderRail();
+      renderHead();
+      if (state.view === 'overview') renderOverview();
+      if (!res.regenerated) console.warn('数据未重新生成：', res.log);
+    }).catch(function (err) {
+      if (el.classList.contains('close-btn')) {
+        el.disabled = false;
+        el.textContent = restore;
+      }
+      alert('写入失败：' + err.message);
     });
   }
 
-  function copyCloseInstruction(task, btn) {
-    var text = '把 08-AI记忆/待办与下一步.md 里这条待办标记为已结案' +
-      '（行尾追加 〔已结案 ' + todayStr() + '〕）：\n- ' + task;
+  // 乐观更新：先把界面切过去，避免等重新生成
+  function applyOverride(task, action) {
+    var o = override[task] || (override[task] = {});
+    if (action === 'done') { o.done = true; o.closed = false; }
+    else if (action === 'undone') { o.done = false; o.closed = false; }
+    else if (action === 'close') { o.done = true; o.closed = true; }
+    else if (action === 'reopen') { o.done = true; o.closed = false; }
+  }
+
+  var ACTION_TEXT = {
+    done: '标记为已完成',
+    undone: '改回未完成',
+    close: '标记为已结案',
+    reopen: '撤销结案'
+  };
+
+  function copyInstruction(task, action, el) {
+    var line = ACTION_TEXT[action] || action;
+    var text = '把 08-AI记忆/待办与下一步.md 里这条待办' + line + '：\n- ' + task;
+    if (action === 'close') text += '\n（行尾追加 〔已结案 ' + todayStr() + '〕）';
+
+    // 复选框里没有文字，用 title 和描边提示；按钮才换文案
+    var isBox = el.classList.contains('intent-box');
+    var oldTitle = el.title;
+    var oldText = el.textContent;
     var done = function () {
-      var old = btn.textContent;
-      btn.textContent = '已复制';
-      setTimeout(function () { btn.textContent = old; }, 1600);
+      el.classList.add('flash');
+      if (isBox) el.title = '已复制指令';
+      else el.textContent = '已复制';
+      setTimeout(function () {
+        el.classList.remove('flash');
+        if (isBox) el.title = oldTitle;
+        else el.textContent = oldText;
+      }, 1600);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text, done); });
