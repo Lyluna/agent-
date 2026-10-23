@@ -627,25 +627,65 @@
     if (el) el.textContent = cloudReady() ? '云端已连' : '云端';
   }
 
+  // 页面内面板，不用 prompt()：部分浏览器会静默拦截系统弹窗
   function openCloudSettings() {
-    var base = prompt(
-      '云端写入服务地址（Cloudflare Worker）\n\n留空表示清除配置。\n例：https://memory-portal.xxx.workers.dev',
-      cloud.base || '');
-    if (base === null) return;
-    base = base.trim();
-    if (!base) {
+    var old = document.getElementById('cloudPanel');
+    if (old) old.remove();
+
+    var panel = document.createElement('div');
+    panel.id = 'cloudPanel';
+    panel.className = 'cloud-panel';
+    panel.innerHTML =
+      '<h3>云端写入</h3>' +
+      '<p class="hint">填 Cloudflare Worker 地址和共享密钥。只在浏览器本地保存。</p>' +
+      '<label>Worker 地址</label>' +
+      '<input id="cloudBase" type="url" placeholder="https://memory-portal.xxx.workers.dev" value="' +
+        esc(cloud.base) + '">' +
+      '<label>共享密钥</label>' +
+      '<input id="cloudSecret" type="password" placeholder="SHARED_SECRET 的值" value="' +
+        esc(cloud.secret) + '">' +
+      '<div class="cloud-actions">' +
+        '<button class="ghost-btn" id="cloudCancel">取消</button>' +
+        '<button class="ghost-btn" id="cloudClear">清除</button>' +
+        '<button class="ghost-btn primary" id="cloudSave">保存</button>' +
+      '</div>' +
+      '<div class="cloud-msg" id="cloudMsg"></div>';
+    document.body.appendChild(panel);
+
+    function close() { panel.remove(); }
+
+    document.getElementById('cloudCancel').addEventListener('click', close);
+    document.getElementById('cloudClear').addEventListener('click', function () {
       saveCloud('', '');
       updateCloudLabel();
       renderFacts();
-      alert('已清除云端配置。');
-      return;
-    }
-    var secret = prompt('共享密钥（与 Worker 的 SHARED_SECRET 一致）', cloud.secret || '');
-    if (secret === null) return;
-    saveCloud(base, secret.trim());
-    updateCloudLabel();
-    renderFacts();
-    alert(cloudReady() ? '已保存。删除、合并、改待办现在会直接写云端。' : '配置不完整。');
+      close();
+    });
+    document.getElementById('cloudSave').addEventListener('click', function () {
+      var base = document.getElementById('cloudBase').value.trim();
+      var secret = document.getElementById('cloudSecret').value.trim();
+      var msg = document.getElementById('cloudMsg');
+      if (!base) { msg.textContent = '请填 Worker 地址'; msg.className = 'cloud-msg err'; return; }
+      if (!secret) { msg.textContent = '请填共享密钥'; msg.className = 'cloud-msg err'; return; }
+      saveCloud(base, secret);
+      updateCloudLabel();
+      renderFacts();
+      msg.textContent = '已保存，正在测试连接…';
+      msg.className = 'cloud-msg';
+      fetch(base.replace(/\/+$/, '') + '/health', { cache: 'no-store' })
+        .then(function (r) { return r.json(); }).then(function (r) {
+        if (r && (r.ok || r.repo)) {
+          msg.textContent = '连接成功。删除、合并、改待办会直接写云端。';
+          msg.className = 'cloud-msg ok';
+        } else {
+          msg.textContent = '连上了但返回异常：' + JSON.stringify(r);
+          msg.className = 'cloud-msg err';
+        }
+      }).catch(function (e) {
+        msg.textContent = '连接失败：' + e.message + '（检查地址和密钥）';
+        msg.className = 'cloud-msg err';
+      });
+    });
   }
 
   // 统一处理复选框和结案按钮：本地写文件 / 云端走 Worker / 都没有就复制指令

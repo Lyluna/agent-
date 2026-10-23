@@ -1066,3 +1066,65 @@ td.mono { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
   color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================
+   云端写入设置面板
+   ============================================================ */
+.cloud-panel {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 320px;
+  padding: 18px 18px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .16);
+  z-index: 200;
+  font-size: 13px;
+}
+.cloud-panel h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.cloud-panel .hint {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.cloud-panel label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.cloud-panel input {
+  width: 100%;
+  padding: 7px 9px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--ground);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  outline: none;
+}
+.cloud-panel input:focus { border-color: var(--muted); }
+.cloud-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.cloud-msg {
+  margin-top: 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  min-height: 16px;
+}
+.cloud-msg.ok { color: var(--signal); }
+.cloud-msg.err { color: var(--warn); }
