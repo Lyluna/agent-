@@ -258,12 +258,28 @@
   }
 
   // ---------- 事实 ----------
+  // 只有事实可以删：有些对话不值得留。删除走本地服务移进 _已作废/，线上降级为复制指令。
+  var pickMode = false;      // 合并选择模式
+  var picked = [];           // 选中的文件名
+
   function factRow(f, i) {
     var live = f.status === '进行中';
-    return '<div class="fact" tabindex="0" data-idx="' + i + '">' +
+    var canPick = pickMode && canWrite;
+    var on = picked.indexOf(f.file) !== -1;
+    var cls = 'fact' + (on ? ' picked' : '');
+    var pick = canPick
+      ? '<button class="pick-box" data-file="' + esc(f.file) + '" aria-pressed="' + on + '" ' +
+        'aria-label="选择合并" title="选择合并"></button>'
+      : '';
+    var del = '';
+    if (canWrite) {
+      del = '<button class="del-btn" data-file="' + esc(f.file) + '" data-title="' +
+        esc(f.title) + '" aria-label="删除这条存档" title="删除这条存档">删除</button>';
+    }
+    return '<div class="' + cls + '" tabindex="0" data-idx="' + i + '">' +
       '<div class="fact-date">' + esc(f.date) + '</div>' +
       '<div class="fact-main">' +
-        '<div class="fact-title">' + esc(f.title) + '</div>' +
+        '<div class="fact-title">' + pick + esc(f.title) + '</div>' +
         '<div class="fact-sum">' + esc(f.summary) + '</div>' +
         '<div class="fact-detail">' +
           '<div class="detail-bar"><span>完整对话存档</span>' +
@@ -274,6 +290,7 @@
       '<div class="fact-side">' +
         (live ? '<span class="live">进行中</span>' : '') +
         '<span class="src">' + esc(f.tool) + '</span>' +
+        del +
       '</div>' +
     '</div>';
   }
@@ -281,10 +298,86 @@
   function bindFacts(root) {
     Array.prototype.forEach.call(root.querySelectorAll('.fact'), function (el) {
       function toggle() { el.classList.toggle('open'); }
-      el.addEventListener('click', toggle);
+      el.addEventListener('click', function (e) {
+        if (e.target.closest('button')) return;   // 删除/勾选按钮不展开
+        toggle();
+      });
       el.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
       });
+    });
+
+    Array.prototype.forEach.call(root.querySelectorAll('.del-btn'), function (el) {
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (canWrite) {
+          var why = prompt('删除这条对话存档？\n\n「' + el.dataset.title +
+            '」\n\n会移进 _已作废/，可随时恢复。\n要备注原因可以写在这里（可留空）：', '');
+          if (why === null) return;      // 取消
+          writeDelete(el.dataset.file, el);
+        } else {
+          copyInstruction(el.dataset.file, 'delete', el);
+        }
+      });
+    });
+
+    Array.prototype.forEach.call(root.querySelectorAll('.pick-box'), function (el) {
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var file = el.dataset.file;
+        var at = picked.indexOf(file);
+        if (at === -1) picked.push(file); else picked.splice(at, 1);
+        renderFacts();
+      });
+    });
+  }
+
+  function writeDelete(file, el) {
+    var restore = el.textContent;
+    el.disabled = true;
+    el.textContent = '删除中…';
+    fetch('/api/archive/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: file })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || '删除失败');
+      MEM.facts = MEM.facts.filter(function (f) { return f.file !== file; });
+      renderFacts();
+      renderRail();
+      renderHead();
+      if (state.view === 'overview') renderOverview();
+    }).catch(function (err) {
+      el.disabled = false;
+      el.textContent = restore;
+      alert('删除失败：' + err.message);
+    });
+  }
+
+  function togglePickMode() {
+    pickMode = !pickMode;
+    if (!pickMode) picked = [];
+    renderFacts();
+  }
+
+  function mergePicked() {
+    if (picked.length < 2) { alert('至少选两条才能合并'); return; }
+    var first = MEM.facts.filter(function (f) { return f.file === picked[0]; })[0];
+    var name = prompt('把选中的 ' + picked.length + ' 条合成一条存档。\n\n合并后的主题：',
+      (first && first.title) || '合并对话');
+    if (name === null) return;
+    fetch('/api/archive/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: picked.slice(), title: name })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || '合并失败');
+      pickMode = false;
+      picked = [];
+      alert('已合并为：' + res.merged + '\n\n来源存档已移进 _已作废/，刷新页面看新条目。');
+      location.reload();
+    }).catch(function (err) {
+      alert('合并失败：' + err.message);
     });
   }
 
@@ -295,7 +388,19 @@
 
     var html = '<div class="sec-label"><h2>事实时间线</h2>' +
       '<span class="count">' + list.length + ' 条</span></div>';
-    html += '<p class="sec-note">由自动归档实时写入。点击任一条展开完整对话。</p>';
+
+    var bar = '';
+    if (canWrite) {
+      bar = '<div class="fact-tools">' +
+        '<button class="ghost-btn' + (pickMode ? ' on' : '') + '" id="pickToggle">' +
+        (pickMode ? '退出合并选择' : '合并多条') + '</button>' +
+        (pickMode ? '<button class="ghost-btn primary" id="mergeGo"' +
+          (picked.length < 2 ? ' disabled' : '') + '>合并选中的 ' + picked.length + ' 条</button>' : '') +
+        '</div>';
+    }
+    html += bar;
+    html += '<p class="sec-note">由自动归档实时写入。点击任一条展开完整对话。' +
+      (canWrite ? '同一次对话被拆成多条时，用「合并多条」把它们并成一条。' : '') + '</p>';
 
     if (!list.length) {
       html += '<div class="empty"><strong>没有匹配的对话</strong>换个工具筛选试试。</div>';
@@ -305,6 +410,9 @@
 
     $('view-facts').innerHTML = html;
     bindFacts($('view-facts'));
+
+    if ($('pickToggle')) $('pickToggle').addEventListener('click', togglePickMode);
+    if ($('mergeGo')) $('mergeGo').addEventListener('click', mergePicked);
   }
 
   // ---------- 认知 ----------
@@ -407,6 +515,27 @@
     '</div>';
   }
 
+  // 同一优先级下再按 group 分组，组标题就是 markdown 里的 ### 小标题
+  function groupByLabel(list) {
+    var groups = [], index = {};
+    list.forEach(function (i) {
+      var key = i.group || '';
+      if (!(key in index)) { index[key] = groups.length; groups.push({ label: key, items: [] }); }
+      groups[index[key]].items.push(i);
+    });
+    return groups;
+  }
+
+  function renderGrouped(list) {
+    return groupByLabel(list).map(function (g) {
+      var head = g.label
+        ? '<div class="group-label">' + esc(g.label) +
+          '<span class="count">' + g.items.length + '</span></div>'
+        : '';
+      return head + '<div class="intents">' + g.items.map(intentRow).join('') + '</div>';
+    }).join('');
+  }
+
   function renderIntents() {
     var pending = MEM.intents.filter(isPending);
     var confirm = MEM.intents.filter(isToConfirm);
@@ -422,19 +551,19 @@
     if (!pending.length && !confirm.length && !closed.length) {
       html += '<div class="empty"><strong>没有待办</strong>有新计划时会出现在这里。</div>';
     } else {
-      if (pending.length) html += '<div class="intents">' + pending.map(intentRow).join('') + '</div>';
+      if (pending.length) html += renderGrouped(pending);
 
       if (confirm.length) {
         html += '<div class="sec-label" style="margin-top:30px"><h2>待确认结案</h2>' +
           '<span class="count">' + confirm.length + ' 项</span></div>';
         html += '<p class="sec-note">做完的条目先停这里。确认没有后续就点「确认无后续」，之后不再提醒。</p>';
-        html += '<div class="intents">' + confirm.map(intentRow).join('') + '</div>';
+        html += renderGrouped(confirm);
       }
 
       if (closed.length) {
         html += '<div class="sec-label" style="margin-top:30px"><h2>已结案</h2>' +
           '<span class="count">' + closed.length + ' 项</span></div>';
-        html += '<div class="intents">' + closed.map(intentRow).join('') + '</div>';
+        html += renderGrouped(closed);
       }
     }
 
@@ -506,8 +635,15 @@
 
   function copyInstruction(task, action, el) {
     var line = ACTION_TEXT[action] || action;
-    var text = '把 08-AI记忆/待办与下一步.md 里这条待办' + line + '：\n- ' + task;
-    if (action === 'close') text += '\n（行尾追加 〔已结案 ' + todayStr() + '〕）';
+    var text;
+    if (action === 'delete') {
+      text = '把 08-AI记忆/对话存档/ 里的这条存档删掉（移进 _已作废/），并在 ' +
+        'tools/archive_state.json 里把对应会话标记 deleted: true，防止定时扫描重建：\n- ' + task;
+    } else {
+      text = '把 08-AI记忆/待办与下一步.md 里这条待办' + line + '：\n- ' + task;
+      if (action === 'close') text += '\n（行尾追加 〔已结案 ' + todayStr() + '〕）';
+    }
+
 
     // 复选框里没有文字，用 title 和描边提示；按钮才换文案
     var isBox = el.classList.contains('intent-box');
@@ -555,7 +691,10 @@
       .then(function (j) {
         if (j && j.writable) {
           canWrite = true;
+          // 事实视图的删除 / 合并按钮只在可写时出现，探测完要重绘一次
           if (state.view === 'intents') renderIntents();
+          else if (state.view === 'facts') renderFacts();
+          else if (state.view === 'overview') renderOverview();
         }
       })
       .catch(function () {});

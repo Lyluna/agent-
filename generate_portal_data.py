@@ -276,20 +276,29 @@ CLOSED_RE = re.compile(r"〔已结案\s*(\d{4}-\d{2}-\d{2})〕")
 
 
 def parse_intents():
+    """解析待办。支持两种小标题：
+      ### 高优先级 / 中优先级 / 低优先级   —— 定优先级
+      ### 知识库结构                      —— 在所属优先级下再分组
+    「## 下一步计划」之类的非优先级章节整块忽略。
+    """
     content = read_text(os.path.join(MEMORY_DIR, "待办与下一步.md"))
     _, body = parse_frontmatter(content)
     intents = []
-    current = None
+    current = None    # high / mid / low
+    group = ""        # 子分组名，空表示直接挂在优先级下
     for line in body.splitlines():
         s = line.strip()
         if s.startswith("### 高优先级"):
-            current = "high"
+            current, group = "high", ""
         elif s.startswith("### 中优先级"):
-            current = "mid"
+            current, group = "mid", ""
         elif s.startswith("### 低优先级"):
-            current = "low"
-        elif s.startswith("### ") or s.startswith("## "):
-            current = None
+            current, group = "low", ""
+        elif s.startswith("### "):
+            # 其他小标题：仍属于上一个优先级，作为分组名
+            group = clean_inline(s[4:], 30) if current else ""
+        elif s.startswith("## "):
+            current, group = None, ""
         elif current:
             m = re.match(r"^-\s*\[( |x|X)\]\s*(.+)$", s)
             if m:
@@ -298,12 +307,13 @@ def parse_intents():
                 intents.append({
                     "task": clean_inline(CLOSED_RE.sub("", raw), 240),
                     "priority": current,
+                    "group": group,
                     "done": m.group(1).lower() == "x",
                     "closed": bool(mc),
                     "closed_at": mc.group(1) if mc else "",
                 })
     order = {"high": 0, "mid": 1, "low": 2}
-    # 待办 → 待确认结案 → 已结案
+    # 待办 → 待确认结案 → 已结案；同组内保持文件顺序
     intents.sort(key=lambda i: (
         i["closed"], i["done"], order.get(i["priority"], 9)))
     return intents
