@@ -272,7 +272,7 @@
         'aria-label="选择合并" title="选择合并"></button>'
       : '';
     var del = '';
-    if (canWrite) {
+    if (canWrite || cloudReady()) {
       del = '<button class="del-btn" data-file="' + esc(f.file) + '" data-title="' +
         esc(f.title) + '" aria-label="删除这条存档" title="删除这条存档">删除</button>';
     }
@@ -310,11 +310,11 @@
     Array.prototype.forEach.call(root.querySelectorAll('.del-btn'), function (el) {
       el.addEventListener('click', function (e) {
         e.stopPropagation();
-        if (canWrite) {
-          var why = prompt('删除这条对话存档？\n\n「' + el.dataset.title +
-            '」\n\n会移进 _已作废/，可随时恢复。\n要备注原因可以写在这里（可留空）：', '');
-          if (why === null) return;      // 取消
-          writeDelete(el.dataset.file, el);
+        if (canWrite || cloudReady()) {
+          if (!confirm('删除这条对话存档？\n\n「' + el.dataset.title +
+            '」\n\n会移进 _已作废/，可随时恢复。')) return;
+          if (canWrite) writeDelete(el.dataset.file, el);
+          else writeDeleteCloud(el.dataset.file, el);
         } else {
           copyInstruction(el.dataset.file, 'delete', el);
         }
@@ -354,6 +354,24 @@
     });
   }
 
+  function writeDeleteCloud(file, el) {
+    var restore = el.textContent;
+    el.disabled = true;
+    el.textContent = '删除中…';
+    cloudPost('/delete', { file: file }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || '删除失败');
+      MEM.facts = MEM.facts.filter(function (f) { return f.file !== file; });
+      renderFacts();
+      renderRail();
+      renderHead();
+      if (state.view === 'overview') renderOverview();
+    }).catch(function (err) {
+      el.disabled = false;
+      el.textContent = restore;
+      alert('删除失败：' + err.message);
+    });
+  }
+
   function togglePickMode() {
     pickMode = !pickMode;
     if (!pickMode) picked = [];
@@ -366,15 +384,18 @@
     var name = prompt('把选中的 ' + picked.length + ' 条合成一条存档。\n\n合并后的主题：',
       (first && first.title) || '合并对话');
     if (name === null) return;
-    fetch('/api/archive/merge', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ files: picked.slice(), title: name })
-    }).then(function (r) { return r.json(); }).then(function (res) {
+    var url = canWrite ? '/api/archive/merge' : (cloud.base + '/merge');
+    var opts = canWrite
+      ? { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: picked.slice(), title: name }) }
+      : { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Portal-Secret': cloud.secret },
+          body: JSON.stringify({ files: picked.slice(), title: name }) };
+    fetch(url, opts).then(function (r) { return r.json(); }).then(function (res) {
       if (!res.ok) throw new Error(res.error || '合并失败');
       pickMode = false;
       picked = [];
-      alert('已合并为：' + res.merged + '\n\n来源存档已移进 _已作废/，刷新页面看新条目。');
+      alert('已合并为：' + res.merged + '\n\n来源存档已移进 _已作废/。云端数据约 1 分钟后重新加密，稍后刷新。');
       location.reload();
     }).catch(function (err) {
       alert('合并失败：' + err.message);
@@ -390,7 +411,7 @@
       '<span class="count">' + list.length + ' 条</span></div>';
 
     var bar = '';
-    if (canWrite) {
+    if (canWrite || cloudReady()) {
       bar = '<div class="fact-tools">' +
         '<button class="ghost-btn' + (pickMode ? ' on' : '') + '" id="pickToggle">' +
         (pickMode ? '退出合并选择' : '合并多条') + '</button>' +
@@ -400,7 +421,7 @@
     }
     html += bar;
     html += '<p class="sec-note">由自动归档实时写入。点击任一条展开完整对话。' +
-      (canWrite ? '同一次对话被拆成多条时，用「合并多条」把它们并成一条。' : '') + '</p>';
+      (canWrite || cloudReady() ? '同一次对话被拆成多条时，用「合并多条」把它们并成一条。' : '') + '</p>';
 
     if (!list.length) {
       html += '<div class="empty"><strong>没有匹配的对话</strong>换个工具筛选试试。</div>';
@@ -571,7 +592,63 @@
     bindIntentActions($('view-intents'));
   }
 
-  // 统一处理复选框和结案按钮：本地写文件，线上复制指令
+  // ---------- 云端写模式 ----------
+  // 线上门户通过 Cloudflare Worker 改仓库，浏览器不持有 GitHub token。
+  // Worker 地址与共享密钥由用户在页面上填一次，存在 localStorage。
+  var cloud = { base: '', secret: '' };
+
+  function loadCloud() {
+    try {
+      var raw = localStorage.getItem('portal-cloud');
+      if (raw) { var o = JSON.parse(raw); cloud.base = o.base || ''; cloud.secret = o.secret || ''; }
+    } catch (e) {}
+  }
+
+  function saveCloud(base, secret) {
+    cloud.base = (base || '').replace(/\/+$/, '');
+    cloud.secret = secret || '';
+    try { localStorage.setItem('portal-cloud', JSON.stringify(cloud)); } catch (e) {}
+  }
+
+  function cloudReady() { return !!(cloud.base && cloud.secret); }
+
+  function cloudPost(path, payload) {
+    return fetch(cloud.base + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Portal-Secret': cloud.secret },
+      body: JSON.stringify(payload || {})
+    }).then(function (r) {
+      return r.json().catch(function () { return { ok: false, error: 'HTTP ' + r.status }; });
+    });
+  }
+
+  function updateCloudLabel() {
+    var el = $('cloudLabel');
+    if (el) el.textContent = cloudReady() ? '云端已连' : '云端';
+  }
+
+  function openCloudSettings() {
+    var base = prompt(
+      '云端写入服务地址（Cloudflare Worker）\n\n留空表示清除配置。\n例：https://memory-portal.xxx.workers.dev',
+      cloud.base || '');
+    if (base === null) return;
+    base = base.trim();
+    if (!base) {
+      saveCloud('', '');
+      updateCloudLabel();
+      renderFacts();
+      alert('已清除云端配置。');
+      return;
+    }
+    var secret = prompt('共享密钥（与 Worker 的 SHARED_SECRET 一致）', cloud.secret || '');
+    if (secret === null) return;
+    saveCloud(base, secret.trim());
+    updateCloudLabel();
+    renderFacts();
+    alert(cloudReady() ? '已保存。删除、合并、改待办现在会直接写云端。' : '配置不完整。');
+  }
+
+  // 统一处理复选框和结案按钮：本地写文件 / 云端走 Worker / 都没有就复制指令
   function bindIntentActions(root) {
     Array.prototype.forEach.call(
       root.querySelectorAll('[data-task][data-action]'),
@@ -582,6 +659,8 @@
           var action = el.dataset.action;
           if (canWrite) {
             writeStatus(task, action, el);
+          } else if (cloudReady()) {
+            writeStatusCloud(task, action, el);
           } else {
             copyInstruction(task, action, el);
           }
@@ -614,6 +693,29 @@
         el.textContent = restore;
       }
       alert('写入失败：' + err.message);
+    });
+  }
+
+  function writeStatusCloud(task, action, el) {
+    var restore = el.textContent;
+    if (el.classList.contains('close-btn')) {
+      el.disabled = true;
+      el.textContent = '写入中…';
+    }
+    cloudPost('/todo', { task: task, action: action }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || '写入失败');
+      applyOverride(task, action);
+      renderIntents();
+      renderRail();
+      renderHead();
+      if (state.view === 'overview') renderOverview();
+    }).catch(function (err) {
+      if (el.classList.contains('close-btn')) {
+        el.disabled = false;
+        el.textContent = restore;
+      }
+      alert('云端写入失败：' + err.message +
+        '\n\n数据可能在 1 分钟后才重新加密，稍后刷新即可。');
     });
   }
 
@@ -1001,6 +1103,10 @@
     $('themeBtn').addEventListener('click', function () {
       applyTheme(state.theme === 'dark' ? 'light' : 'dark');
     });
+
+    loadCloud();
+    updateCloudLabel();
+    $('cloudBtn').addEventListener('click', openCloudSettings);
 
     bindPalette();
 
