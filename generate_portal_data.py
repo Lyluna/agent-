@@ -174,7 +174,7 @@ def parse_archive(filepath):
     return {
         "date": created[:16],
         "tool": tool,
-        "file": fname,
+        "file": fname + ".md",   # 带扩展名：Worker 直接拼路径，前端展示时再去掉
         "title": title,
         "archive_type": archive_type,
         "status": status,
@@ -183,9 +183,16 @@ def parse_archive(filepath):
     }
 
 
+# 系统文件不是对话，不进时间线
+SYSTEM_FILES = {"_已删除记录", "_索引"}
+
+
 def load_facts():
     facts = []
     for filepath in glob.glob(os.path.join(ARCHIVE_DIR, "*.md")):
+        name = os.path.basename(filepath).replace(".md", "")
+        if name in SYSTEM_FILES or name.startswith("_"):
+            continue
         try:
             facts.append(parse_archive(filepath))
         except Exception as e:
