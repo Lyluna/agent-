@@ -1128,3 +1128,38 @@ td.mono { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
 }
 .cloud-msg.ok { color: var(--signal); }
 .cloud-msg.err { color: var(--warn); }
+
+/* ---------- 非阻塞提示 ---------- */
+.toast-box {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+.toast {
+  max-width: min(420px, calc(100vw - 40px));
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.5;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  animation: toast-in 0.22s ease-out;
+}
+.toast-error { border-color: var(--warn); color: var(--warn); }
+.toast-out { opacity: 0; transform: translateY(6px); transition: all 0.25s ease-in; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 640px) {
+  .toast-box { right: 12px; left: 12px; bottom: 12px; align-items: stretch; }
+  .toast { max-width: none; }
+}

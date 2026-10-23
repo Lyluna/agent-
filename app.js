@@ -52,6 +52,26 @@
 
   function plural(n, unit) { return n + ' ' + unit; }
 
+  // 非阻塞提示：右下角浮出一条，几秒后自己消失。
+  // 不用 alert()——它会打断操作，也不该在每次写完都弹窗。
+  function toast(msg, isError) {
+    var box = document.getElementById('toastBox');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'toastBox';
+      box.className = 'toast-box';
+      document.body.appendChild(box);
+    }
+    var item = document.createElement('div');
+    item.className = 'toast' + (isError ? ' toast-error' : '');
+    item.textContent = msg;
+    box.appendChild(item);
+    setTimeout(function () {
+      item.classList.add('toast-out');
+      setTimeout(function () { item.remove(); }, 300);
+    }, isError ? 6000 : 3500);
+  }
+
   // 简单的高亮：把查询词包进 <strong>
   function mark(text, q) {
     var safe = esc(text);
@@ -350,7 +370,7 @@
     }).catch(function (err) {
       el.disabled = false;
       el.textContent = restore;
-      alert('删除失败：' + err.message);
+      toast('删除失败：' + err.message, true);
     });
   }
 
@@ -368,7 +388,7 @@
     }).catch(function (err) {
       el.disabled = false;
       el.textContent = restore;
-      alert('删除失败：' + err.message);
+      toast('删除失败：' + err.message, true);
     });
   }
 
@@ -379,7 +399,7 @@
   }
 
   function mergePicked() {
-    if (picked.length < 2) { alert('至少选两条才能合并'); return; }
+    if (picked.length < 2) { toast('至少选两条才能合并', true); return; }
     var first = MEM.facts.filter(function (f) { return f.file === picked[0]; })[0];
     var name = prompt('把选中的 ' + picked.length + ' 条合成一条存档。\n\n合并后的主题：',
       (first && first.title) || '合并对话');
@@ -393,12 +413,28 @@
           body: JSON.stringify({ files: picked.slice(), title: name }) };
     fetch(url, opts).then(function (r) { return r.json(); }).then(function (res) {
       if (!res.ok) throw new Error(res.error || '合并失败');
+      // 本地即时生效：移除来源条目、插入合并后的新条目。
+      // 不 location.reload()——那会清掉内存里的密码，把用户踢回登录页。
+      var removed = picked.slice();
+      var first0 = MEM.facts.filter(function (f) { return f.file === removed[0]; })[0];
+      MEM.facts = MEM.facts.filter(function (f) { return removed.indexOf(f.file) === -1; });
+      if (first0) {
+        MEM.facts.unshift({
+          date: first0.date, tool: first0.tool, file: res.merged,
+          title: name || first0.title, archive_type: 'full', status: '',
+          summary: '由 ' + removed.length + ' 段对话合并而成（刷新页面后可见完整正文）',
+          detail: ''
+        });
+      }
       pickMode = false;
       picked = [];
-      alert('已合并为：' + res.merged + '\n\n来源存档已移进 _已作废/。云端数据约 1 分钟后重新加密，稍后刷新。');
-      location.reload();
+      renderFacts();
+      renderRail();
+      renderHead();
+      if (state.view === 'overview') renderOverview();
+      toast('已合并为：' + res.merged + '（来源已移进 _已作废/）');
     }).catch(function (err) {
-      alert('合并失败：' + err.message);
+      toast('合并失败：' + err.message, true);
     });
   }
 
@@ -733,7 +769,7 @@
         el.disabled = false;
         el.textContent = restore;
       }
-      alert('写入失败：' + err.message);
+      toast('写入失败：' + err.message, true);
     });
   }
 
@@ -755,8 +791,7 @@
         el.disabled = false;
         el.textContent = restore;
       }
-      alert('云端写入失败：' + err.message +
-        '\n\n数据可能在 1 分钟后才重新加密，稍后刷新即可。');
+      toast('云端写入失败：' + err.message + '（数据可能 1 分钟后才重新加密）', true);
     });
   }
 
