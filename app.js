@@ -264,7 +264,7 @@
 
   function factRow(f, i) {
     var live = f.status === '进行中';
-    var canPick = pickMode && canWrite;
+    var canPick = pickMode && (canWrite || cloudReady());
     var on = picked.indexOf(f.file) !== -1;
     var cls = 'fact' + (on ? ' picked' : '');
     var pick = canPick
@@ -523,7 +523,7 @@
       action = '<span class="closed-tag">已结案' +
         (t.closed_at ? ' ' + esc(t.closed_at) : '') + '</span>';
     } else if (done) {
-      action = canWrite
+      action = (canWrite || cloudReady())
         ? '<button class="close-btn" data-task="' + esc(t.task) + '" data-action="close">确认无后续</button>'
         : '<button class="close-btn copy" data-task="' + esc(t.task) + '" data-action="close">复制结案指令</button>';
     }
@@ -566,7 +566,8 @@
       '<span class="count">' + pending.length + ' 项未完成</span></div>';
     html += '<p class="sec-note">' +
       (canWrite ? '点复选框标记完成或改回；已完成的需要你确认「没有后续」才会归档。'
-                : '线上是只读的：点复选框或按钮会复制一条指令，粘给任意 AI 执行。') +
+        : cloudReady() ? '点复选框标记完成或改回，改动会直接写回仓库。'
+        : '线上是只读的：点复选框或按钮会复制一条指令，粘给任意 AI 执行。') +
       '</p>';
 
     if (!pending.length && !confirm.length && !closed.length) {
