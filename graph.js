@@ -94,8 +94,9 @@
       });
       $('graphCanvas').innerHTML = '<svg viewBox="0 0 ' + w + ' ' + h + '" role="group" aria-label="选择关系入口">' +
         '<g class="graph-edges">' + inner.join('') + '</g>' +
-        '<text class="graph-hint" x="' + cx + '" y="' + (cy - 30) + '" text-anchor="middle">选一个项目或知识条目，看它的真实关联</text>' +
-        '<g class="graph-nodes">' + dots + '</g></svg>';
+        '<g class="graph-nodes">' + dots + '</g>' +
+        // 提示放最底部：放中间会被内圈节点的标签压住。
+        '<text class="graph-hint" x="' + cx + '" y="' + (h - 26) + '" text-anchor="middle">选一个项目或知识条目，看它的真实关联</text></svg>';
       bindNodes();
       $('graphLimit').textContent = '从 ' + list.length + ' 个项目/知识入口开始 · 其中 ' + pairs +
         ' 组之间有显式双链 · 全库 ' + graph.nodes.length + ' 个节点、' + graph.links.length +

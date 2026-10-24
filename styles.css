@@ -1257,6 +1257,8 @@ p, li, .fact-sum { text-wrap: pretty; }
 .graph-map { min-width: 0; overflow: hidden; }
 .graph-map svg { width: 100%; height: 680px; overflow: visible; }
 .graph-edge { stroke: var(--control); stroke-width: .7; opacity: .42; }
+/* 入口视图里入口之间的双链：这是「谁和谁真有关」的唯一证据，要比普通边更实。 */
+.graph-edges .graph-edge { stroke: var(--signal); stroke-width: 1.1; opacity: .55; }
 .graph-node { cursor: pointer; outline: none; }
 .graph-node text { fill: var(--muted); font-family: var(--font); font-size: 10px; paint-order: stroke; stroke: var(--ground); stroke-width: 4px; stroke-linejoin: round; }
 .graph-node-ring { fill: var(--ground); stroke: var(--control); stroke-width: 1; transition: stroke .15s, transform .15s; }
