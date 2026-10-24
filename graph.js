@@ -112,7 +112,7 @@
     else if (n.source) action = '<p class="graph-note">来源：' + esc(n.source) + '<br>可在 Obsidian 中打开并编辑这篇笔记。</p>';
     $('graphDetail').innerHTML = '<span class="eyebrow">' + KINDS[n.kind] + '</span><h3>' + esc(n.label) + '</h3>' +
       '<p>' + esc(n.detail || '这条内容暂时没有更多说明。') + '</p>' + action +
-      '<div class="graph-detail-meta">' + (n.source ? esc(n.source) : '来自 Markdown') + ' · ' + links.length + ' 条真实关联</div>' +
+      '<div class="graph-detail-meta">' + (n.source ? esc(n.source) : '来自 Markdown') + (n.date ? ' · ' + esc(n.date) : '') + ' · ' + links.length + ' 条真实关联</div>' +
       (links.length ? '<div class="graph-neighbors">' + links.slice(0, 8).map(function (l) {
         var other = graph.nodes.filter(function (x) { return x.id === (l.source === n.id ? l.target : l.source); })[0];
         return other ? '<button data-id="' + esc(other.id) + '">' + esc(other.label) + '<span>' + esc(l.kind) + '</span></button>' : '';

@@ -45,9 +45,9 @@
     });
 
     (mem.facts || []).forEach(function (f) {
-      var n = add('fact', f.title, f.summary, f.date);
+      var n = add('fact', f.title, f.summary, '08-AI记忆/对话存档/' + f.file);
       if (!n) return;
-      n.file = f.file; n.tool = f.tool;
+      n.file = f.file; n.tool = f.tool; n.date = f.date;
       n.links = (text(f.detail).match(/\[\[[^\]]+\]\]/g) || []).map(clean);
     });
     (mem.beliefs || []).forEach(function (b) {
@@ -67,7 +67,11 @@
       Object.keys(r).forEach(function (k) {
         if (/文件|路径/.test(k)) {
           var label = clean(r[k]);
-          if (label) byName[base(label).toLowerCase()] = byId[id('knowledge', r['主题'] || r[keys[1]] || r[keys[0]])];
+          if (label) {
+            var knowledgeNode = byId[id('knowledge', r['主题'] || r[keys[1]] || r[keys[0]])];
+            byName[base(label).toLowerCase()] = knowledgeNode;
+            if (knowledgeNode && !knowledgeNode.source) knowledgeNode.source = label;
+          }
         }
       });
     });
