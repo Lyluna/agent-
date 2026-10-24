@@ -97,7 +97,19 @@ def parse_frontmatter(content):
 def clean_inline(text, limit=None):
     text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)          # 图片
     text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)      # 链接
-    text = re.sub(r"[*_`>#|]+", "", text)
+    # 双链取显示名：[[路径|别名]] -> 别名，[[路径]] -> 末段名
+    text = re.sub(r"\[\[([^\]|]+)\|([^\]]+)\]\]", r"\2", text)
+    text = re.sub(r"\[\[([^\]|]+)\]\]",
+                  lambda m: m.group(1).split("/")[-1].removesuffix(".md"), text)
+    # 只去真正的 Markdown 记号。下划线不能一律删：
+    # `generate_portal_data.py` 这类文件名会被毁成 `generateportaldata.py`。
+    text = text.replace("`", "")
+    text = re.sub(r"^\s*\[[ xX]\]\s*", "", text)              # 任务复选框
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)              # 粗体
+    text = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"\1", text)   # 斜体
+    text = re.sub(r"(?<![\w])_(?!\s)(.+?)(?<!\s)_(?![\w])", r"\1", text)       # 下划线斜体
+    text = re.sub(r"(?m)^\s{0,3}[>#]+\s*", "", text)          # 行首引用/标题
+    text = re.sub(r"\s*\|\s*", " ", text)                     # 表格竖线
     text = re.sub(r"\s+", " ", text).strip(" -—:：")
     if limit and len(text) > limit:
         text = text[:limit].rstrip() + "…"

@@ -67,6 +67,7 @@
         return connected(b).length - connected(a).length;
       }).slice(0, 12);
       // 两圈交替排布，避免节点少时全挤在一圈、底部标签互相压住
+      var spot = {};
       var dots = list.map(function (n, i) {
         var half = Math.ceil(list.length / 2);
         var ring = i % 2;
@@ -74,14 +75,31 @@
         var count = ring === 0 ? half : list.length - half;
         var a = (idx / Math.max(1, count)) * Math.PI * 2 - Math.PI / 2 + (ring ? Math.PI / Math.max(1, count) : 0);
         var rx = ring ? 300 : 190, ry = ring ? 210 : 132;
-        return nodeMarkup(n, cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, 18);
+        var x = cx + Math.cos(a) * rx, y = cy + Math.sin(a) * ry;
+        spot[n.id] = { x: x, y: y };
+        return nodeMarkup(n, x, y, 18);
       }).join('');
+      // 入口之间本来就有的显式双链要画出来，否则「项目之间毫无关系」是假象。
+      var inList = {}, seenPair = {};
+      list.forEach(function (n) { inList[n.id] = true; });
+      var inner = [], pairs = 0;
+      graph.links.forEach(function (l) {
+        if (!inList[l.source] || !inList[l.target] || l.source === l.target) return;
+        var key = [l.source, l.target].sort().join('\u0000');
+        if (seenPair[key]) return;
+        seenPair[key] = true; pairs++;
+        var a = spot[l.source], b = spot[l.target];
+        inner.push('<line class="graph-edge" x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y +
+          '"><title>' + esc(l.kind) + '</title></line>');
+      });
       $('graphCanvas').innerHTML = '<svg viewBox="0 0 ' + w + ' ' + h + '" role="group" aria-label="选择关系入口">' +
-        '<text class="graph-hint" x="' + cx + '" y="' + (cy - 24) + '" text-anchor="middle">选一个项目或知识条目，看它的真实关联</text>' +
+        '<g class="graph-edges">' + inner.join('') + '</g>' +
+        '<text class="graph-hint" x="' + cx + '" y="' + (cy - 30) + '" text-anchor="middle">选一个项目或知识条目，看它的真实关联</text>' +
         '<g class="graph-nodes">' + dots + '</g></svg>';
       bindNodes();
-      $('graphLimit').textContent = '从 ' + list.length + ' 个项目/知识入口开始 · 全库 ' +
-        graph.nodes.length + ' 个节点、' + graph.links.length + ' 条真实关联，点开一个再看它的邻居';
+      $('graphLimit').textContent = '从 ' + list.length + ' 个项目/知识入口开始 · 其中 ' + pairs +
+        ' 组之间有显式双链 · 全库 ' + graph.nodes.length + ' 个节点、' + graph.links.length +
+        ' 条真实关联，点开一个再看它的邻居';
       return;
     }
 
