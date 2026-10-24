@@ -301,11 +301,15 @@
       '<div class="fact-main">' +
         '<div class="fact-title">' + pick + esc(f.title) + '</div>' +
         '<div class="fact-sum">' + esc(f.summary) + '</div>' +
-        '<div class="fact-detail">' +
+        // 内层再包一层：grid-template-rows 0fr→1fr 只能撑开一行，
+        // 直接放两个子元素会留下一条隐式 auto 行，收起时高度不为 0。
+        '<div class="fact-detail"><div class="detail-inner">' +
           '<div class="detail-bar"><span>完整对话存档</span>' +
           '<span>' + esc(f.tool) + '</span></div>' +
-          '<div class="detail-body">' + esc(f.detail) + '</div>' +
-        '</div>' +
+          // 正文按需渲染：32 条存档合计 38 万字符，一次性塞进 DOM 会让首屏卡住。
+          // 用文件名做键：列表可能被工具筛选过，下标对不上 MEM.facts。
+          '<div class="detail-body" data-file="' + esc(f.file) + '"></div>' +
+        '</div></div>' +
       '</div>' +
       '<div class="fact-side">' +
         (live ? '<span class="live">进行中</span>' : '') +
@@ -325,6 +329,12 @@
       el.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
       });
+      // 指针柔光的坐标。只在精确指向设备上生效，触屏的 pointermove 会被 CSS 挡掉。
+      el.addEventListener('pointermove', function (e) {
+        var r = el.getBoundingClientRect();
+        el.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+        el.style.setProperty('--my', (e.clientY - r.top) + 'px');
+      }, { passive: true });
     });
 
     Array.prototype.forEach.call(root.querySelectorAll('.del-btn'), function (el) {

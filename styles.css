@@ -478,6 +478,23 @@ kbd {
 }
 .fact:hover { background: var(--raised); }
 .fact:focus-visible { background: var(--raised); }
+/* 指针柔光：只在能精确指向的设备上开，触屏没有 hover 概念。
+   位置由 app.js 的 pointermove 写进 --mx / --my。 */
+@media (hover: hover) and (pointer: fine) {
+  .fact { position: relative; isolation: isolate; }
+  .fact::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .18s;
+    background: radial-gradient(280px circle at var(--mx, 50%) var(--my, 50%),
+                var(--signal-soft), transparent 65%);
+  }
+  .fact:hover::before, .fact:focus-within::before { opacity: 1; }
+}
 
 .fact-date {
   font-size: 12px;
@@ -534,9 +551,18 @@ kbd {
   background: var(--signal);
 }
 
-/* 展开的完整对话 */
-.fact-detail { display: none; grid-column: 1 / -1; margin-top: 12px; }
-.fact.open .fact-detail { display: block; }
+/* 展开的完整对话。
+   用 grid-template-rows 0fr→1fr 做高度过渡：display 切换无法过渡，
+   而 max-height 猜数字会在长文上卡顿或截断。内层必须 overflow:hidden + min-height:0。 */
+.fact-detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  grid-column: 1 / -1;
+  margin-top: 0;
+  transition: grid-template-rows .28s cubic-bezier(.2, .8, .2, 1), margin-top .28s;
+}
+.fact-detail > .detail-inner { overflow: hidden; min-height: 0; }
+.fact.open .fact-detail { grid-template-rows: 1fr; margin-top: 12px; }
 
 .detail-bar {
   display: flex;
@@ -967,8 +993,16 @@ td.mono { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
   .palette-foot { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 }
 
+/* 只去动画，不去状态变化。用 .01ms 而不是 none：
+   状态照样切换，只是不播放位移，屏幕阅读器和焦点逻辑不受影响。
+   （WebKit prefers-reduced-motion 示例 4 的写法） */
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ============================================================
