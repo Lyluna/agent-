@@ -440,6 +440,45 @@ def load_sections():
     }
 
 
+def load_relations(facts):
+    """从真实项目/知识笔记提取显式双链。只记链接事实，不做相似度推断。"""
+    fact_by_stem = {f["file"][:-3].lower(): f["title"] for f in facts}
+    roots = [(os.path.join(VAULT, "04-项目"), "project"),
+             (DISTILL_DIR, "knowledge")]
+    documents = []
+    for root, kind in roots:
+        for filepath in glob.glob(os.path.join(root, "**", "*.md"), recursive=True):
+            name = os.path.basename(filepath)
+            if name.startswith("_") or name in ("蒸馏知识索引.md", "README.md"):
+                continue
+            stem = os.path.splitext(name)[0]
+            documents.append((kind, stem, read_text(filepath),
+                              os.path.relpath(filepath, VAULT).replace("\\", "/")))
+    known = {stem.lower(): (kind, stem) for kind, stem, _, _ in documents}
+    nodes, links, seen = [], [], set()
+    for kind, stem, content, path in documents:
+        nodes.append({"kind": kind, "title": stem, "source": path})
+        for raw in re.findall(r"\[\[([^\]]+)\]\]", content):
+            target = raw.split("|", 1)[0].split("#", 1)[0].strip()
+            key = target.split("/")[-1].removesuffix(".md").lower()
+            if not key:
+                continue
+            if key in fact_by_stem:
+                dest = {"kind": "fact", "title": fact_by_stem[key]}
+            elif key in known:
+                dest = {"kind": known[key][0], "title": known[key][1]}
+            else:
+                dest = {"kind": "note", "title": target}
+            edge = (kind, stem, dest["kind"], dest["title"])
+            if edge not in seen:
+                seen.add(edge)
+                links.append({"sourceKind": kind, "sourceTitle": stem,
+                              "targetKind": dest["kind"], "targetTitle": dest["title"],
+                              "kind": "显式双链"})
+    print(f"真实关系：{len(nodes)} 篇项目/知识笔记 · {len(links)} 条显式关联")
+    return {"nodes": nodes, "links": links}
+
+
 def main():
     no_push = "--no-push" in sys.argv
 
@@ -470,6 +509,7 @@ def main():
         "beliefs": beliefs,
         "beliefCategories": cats,
         "intents": intents,
+        "relations": load_relations(facts),
         "sections": sections,
     }
 
@@ -503,7 +543,8 @@ def main():
         subprocess.run(
             # 注意：serve_portal.py 是本地可写服务，含写文件逻辑，**不上传**。
             ["git", "add", "index.html", "styles.css", "app.js", "crypto.js",
-             "encrypted.bin", "generate_portal_data.py", "README.md", ".gitignore"],
+             "graph-data.js", "graph.js", "encrypted.bin",
+             "generate_portal_data.py", "README.md", ".gitignore"],
             cwd=PORTAL_DIR, check=True, capture_output=True, text=True)
         subprocess.run(
             ["git", "commit", "-m", f"portal update {data['updated']}"],

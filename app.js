@@ -23,10 +23,12 @@
     { id: 'beliefs',   label: '认知',   icon: 'bulb' },
     { id: 'intents',   label: '待办',   icon: 'check' },
     { id: 'skills',    label: '技能与工具', icon: 'tool' },
-    { id: 'knowledge', label: '蒸馏知识', icon: 'drop' }
+    { id: 'knowledge', label: '知识', icon: 'drop' },
+    { id: 'graph', label: '关系', icon: 'graph' }
   ];
 
   var ICONS = {
+    graph: '<circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="17" r="2.5"/><circle cx="19" cy="17" r="2.5"/><path d="m10.5 7-4 7.5m7-7.5 4 7.5M7.5 17h9"/>',
     grid:  '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>',
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     bulb:  '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/>',
@@ -55,7 +57,8 @@
   // 非阻塞提示：右下角浮出一条，几秒后自己消失。
   // 不用 alert()——它会打断操作，也不该在每次写完都弹窗。
   function toast(msg, isError) {
-    var box = document.getElementById('toastBox');
+    box.setAttribute('role', 'status');
+    box.setAttribute('aria-live', 'polite');
     if (!box) {
       box = document.createElement('div');
       box.id = 'toastBox';
@@ -107,7 +110,8 @@
       intents: MEM.intents.filter(isPending).length,
       skills: (MEM.sections.skills ? MEM.sections.skills.count : 0) +
               (MEM.sections.tools ? MEM.sections.tools.count : 0),
-      knowledge: MEM.sections.distilled ? MEM.sections.distilled.count : 0
+      knowledge: MEM.sections.distilled ? MEM.sections.distilled.count : 0,
+      graph: null
     };
 
     $('railNav').innerHTML = VIEWS.map(function (v) {
@@ -143,7 +147,10 @@
     renderHead();
     // 工具筛选只在「事实」视图有意义
     $('toolFilter').style.display = id === 'facts' ? '' : 'none';
-    $('searchBtn').style.display = id === 'facts' ? 'none' : '';
+    $('searchBtn').style.display = id === 'facts' || id === 'graph' ? 'none' : '';
+    document.body.dataset.view = id;
+    if (id === 'graph' && globalThis.PortalGraph) PortalGraph.refresh();
+    try { history.replaceState(null, '', location.pathname + '#view=' + id); } catch (e) {}
 
     window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
   }
@@ -178,6 +185,8 @@
     } else if (state.view === 'knowledge') {
       var ds = MEM.sections.distilled || { count: 0 };
       finding = '<b class="num">' + ds.count + '</b> 条可复用结论。';
+    } else if (state.view === 'graph') {
+      finding = '从一条对话或知识出发，沿着真实关联找到它的来源。';
     }
 
     $('pageFinding').innerHTML = finding;
@@ -221,60 +230,44 @@
   // ---------- 概览 ----------
   function renderOverview() {
     var p = MEM.profile || {};
-    var html = '';
+    var high = MEM.intents.filter(function (i) { return isPending(i) && i.priority === 'high'; }).slice(0, 4);
+    var live = MEM.facts.filter(function (f) { return f.status === '进行中'; }).length;
+    var latest = MEM.facts[0] || {};
+    var ds = MEM.sections.distilled || { count: 0 };
+    var html = '<section class="welcome">' +
+      '<div class="welcome-copy"><span class="eyebrow">个人工作系统 · 记忆与知识</span>' +
+      '<h2>继续上次的思考，<br>找到这次能用的答案。</h2>' +
+      '<p>' + esc(p.name || '') + '，这里是各 Agent 共用的记忆与知识工作台。对话有来处，结论能复用，下一步有落点。</p>' +
+      '<div class="welcome-actions"><button class="action-btn" data-go="facts">浏览最近对话</button>' +
+      '<button class="text-btn" data-go="graph">探索内容关系 <span aria-hidden="true">↗</span></button></div></div>' +
+      '<div class="pulse-panel" aria-label="当前工作状态">' +
+        '<div class="pulse-top"><span class="status-dot"></span><span>自动归档运行中</span><span class="pulse-date">' + esc(MEM.updated || '') + '</span></div>' +
+        '<div class="pulse-flow"><div><b>' + MEM.facts.length + '</b><span>对话已留档</span></div><i></i><div><b>' + MEM.beliefs.length + '</b><span>结论可回看</span></div><i></i><div><b>' + (ds.count || 0) + '</b><span>知识待复用</span></div></div>' +
+        '<div class="pulse-foot">' + (live ? live + ' 个对话仍在继续' : '当前没有进行中的对话') + '<span>' + (cloudReady() ? '云端写入已连接' : '只读浏览') + '</span></div>' +
+      '</div></section>';
 
-    // 画像
-    html += '<div class="sec-label"><h2>画像</h2><span class="count">跨 agent 共享</span></div>';
-    html += '<p class="sec-note">你是谁、用什么工具、希望 AI 怎么配合你。</p>';
-    html += '<div class="profile">';
+    html += '<div class="overview-grid"><section class="overview-focus"><div class="section-heading"><span class="section-number">01</span><h2>接着处理</h2>' +
+      '<button class="text-btn" data-go="intents">全部待办</button></div>' +
+      (high.length ? '<div class="intents">' + high.map(intentRow).join('') + '</div>' : '<div class="empty"><strong>高优先级已清空</strong>可以从最近沉淀的内容继续整理。</div>') + '</section>' +
+      '<aside class="overview-latest"><div class="section-heading"><span class="section-number">02</span><h2>最新留档</h2></div>' +
+      '<button class="latest-conversation" data-go="facts"><span>' + esc(latest.date || '等待第一次归档') + '</span><strong>' + esc(latest.title || '新的对话会出现在这里') + '</strong><span>打开完整记录 ↗</span></button>' +
+      '<div class="latest-note">不只是存下对话，也留下以后用得上的判断。</div></aside></div>';
 
-    html += '<div class="profile-cell"><h3>基本信息</h3>' +
-      '<div class="val">' + esc(p.name || '—') + '</div>' +
-      '<div class="sub">' + esc(p.role || '') + '</div></div>';
+    html += '<section class="overview-stream"><div class="section-heading"><span class="section-number">03</span><h2>最近的思考轨迹</h2>' +
+      '<button class="text-btn" data-go="facts">查看全部</button></div><div class="facts">' +
+      MEM.facts.slice(0, 4).map(factRow).join('') + '</div></section>';
 
-    if (p.tools && p.tools.length) {
-      html += '<div class="profile-cell"><h3>接入工具</h3><ul>' +
-        p.tools.map(function (t) {
-          return '<li>' + esc(t.name) + (t.usage ? ' — ' + esc(t.usage) : '') + '</li>';
-        }).join('') + '</ul></div>';
-    }
-
-    if (p.preferences && p.preferences.length) {
-      html += '<div class="profile-cell"><h3>沟通偏好</h3><ul>' +
-        p.preferences.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') +
-        '</ul></div>';
-    }
-
-    if (p.rules && p.rules.length) {
-      html += '<div class="profile-cell"><h3>记忆规则</h3><ul>' +
-        p.rules.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') +
-        '</ul></div>';
-    }
-
-    html += '</div>';
-
-    // 最近的对话
-    var recent = MEM.facts.slice(0, 5);
-    if (recent.length) {
-      html += '<div class="sec-label" style="margin-top:34px"><h2>最近的对话</h2>' +
-        '<span class="count">' + MEM.facts.length + ' 条</span></div>';
-      html += '<p class="sec-note">每次对话归档为一条事实，点开可看完整记录。</p>';
-      html += '<div class="facts">' + recent.map(factRow).join('') + '</div>';
-    }
-
-    // 高优先级待办
-    var high = MEM.intents.filter(function (i) {
-      return isPending(i) && i.priority === 'high';
-    }).slice(0, 5);
-    if (high.length) {
-      html += '<div class="sec-label" style="margin-top:34px"><h2>高优先级待办</h2>' +
-        '<span class="count">' + high.length + ' 项</span></div>';
-      html += '<p class="sec-note">下一步最该动的事。</p>';
-      html += '<div class="intents">' + high.map(intentRow).join('') + '</div>';
-    }
+    html += '<details class="profile-details"><summary>关于这个工作台 <span>共享工具、沟通偏好与使用规则</span></summary>' +
+      '<div class="profile"><div class="profile-cell"><h3>使用者</h3><div class="val">' + esc(p.name || '—') + '</div><div class="sub">' + esc(p.role || '') + '</div></div>' +
+      '<div class="profile-cell"><h3>接入工具</h3><ul>' + (p.tools || []).map(function (t) { return '<li>' + esc(t.name) + ' · ' + esc(t.usage || '') + '</li>'; }).join('') + '</ul></div>' +
+      '<div class="profile-cell"><h3>沟通偏好</h3><ul>' + (p.preferences || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div></details>';
 
     $('view-overview').innerHTML = html;
     bindFacts($('view-overview'));
+    bindIntentActions($('view-overview'));
+    Array.prototype.forEach.call($('view-overview').querySelectorAll('[data-go]'), function (el) {
+      el.addEventListener('click', function () { setView(el.dataset.go); });
+    });
   }
 
   // ---------- 事实 ----------
@@ -1099,8 +1092,8 @@
         $('palette').classList.contains('open') ? closePalette() : openPalette();
       }
       if (e.key === 'Escape' && $('palette').classList.contains('open')) closePalette();
-      // 数字键 1-6 跳分区（不在输入框里时）
-      if (!mod && /^[1-6]$/.test(e.key) &&
+      // 数字键 1-7 跳分区（不在输入框里时）
+      if (!mod && /^[1-7]$/.test(e.key) &&
           !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
         setView(VIEWS[parseInt(e.key, 10) - 1].id);
       }
@@ -1155,6 +1148,7 @@
     MEM.beliefCategories = MEM.beliefCategories || [];
     MEM.intents = MEM.intents || [];
     MEM.sections = MEM.sections || {};
+    MEM.relations = MEM.relations || { nodes: [], links: [] };
   }
 
   function renderAll() {
@@ -1166,6 +1160,7 @@
     renderIntents();
     renderSkills();
     renderKnowledge();
+    if (globalThis.PortalGraph) PortalGraph.init(MEM);
   }
 
   function init() {
