@@ -45,6 +45,8 @@
   }
   function renderMap(nodes) {
     var w = 980, h = 680, cx = w / 2, cy = h / 2;
+    // 筛选时地图只画本类型：邻居留在列表里说明，不画进图，否则一眼看去像全都互相关联。
+    if (selectedKind !== 'all') nodes = nodes.filter(function (n) { return n.kind === selectedKind; });
     var max = Math.min(nodes.length, 54);
     var mapNodes = nodes.slice().sort(function (a, b) {
       var primary = (b.kind === selectedKind) - (a.kind === selectedKind);
@@ -52,9 +54,16 @@
     });
     var visibleIds = {};
     mapNodes.slice(0, max).forEach(function (n) { visibleIds[n.id] = true; });
+    // 节点少时把环撑满画布，避免全挤在中心、标签互相压住。
+    var firstRing = Math.min(max, 18);
+    var perRing = Math.max(firstRing, 8);
+    var baseRx = Math.min(360, 150 + perRing * 22);
+    var baseRy = Math.min(240, 95 + perRing * 16);
     var positioned = mapNodes.slice(0, max).map(function (n, i) {
-      var ring = Math.floor(i / 18), angle = (i % 18) / Math.min(18, max - ring * 18) * Math.PI * 2 - Math.PI / 2;
-      var rx = 145 + ring * 125, ry = 105 + ring * 110;
+      var ring = Math.floor(i / perRing);
+      var inRing = Math.min(perRing, max - ring * perRing);
+      var angle = (i % perRing) / inRing * Math.PI * 2 - Math.PI / 2;
+      var rx = Math.min(430, baseRx + ring * 90), ry = Math.min(275, baseRy + ring * 80);
       return { n: n, x: cx + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry };
     });
     var lines = graph.links.filter(function (l) { return visibleIds[l.source] && visibleIds[l.target]; }).map(function (l) {
@@ -77,19 +86,33 @@
       el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); } });
     });
     $('graphLimit').textContent = nodes.length > max ? '图形显示前 ' + max + ' 个节点，列表保留全部 ' + nodes.length + ' 个；请按类型筛选。' :
-      '显示 ' + nodes.length + ' 个节点 · 只画真实关联，不做相似度推断';
+      (selectedKind === 'all' ? '显示 ' + nodes.length + ' 个节点 · 只画真实关联，不做相似度推断'
+        : '图上是 ' + nodes.length + ' 个' + KINDS[selectedKind] + '，' + KINDS[selectedKind] + '之间的连线才是同类关联');
   }
   function markSelected() {
     Array.prototype.forEach.call($('graphCanvas').querySelectorAll('.graph-node'), function (el) {
       el.classList.toggle('selected', el.dataset.id === selectedId);
     });
   }
+  function rowHtml(n) {
+    return '<button class="graph-list-row' + (selectedId === n.id ? ' selected' : '') + '" data-id="' + esc(n.id) + '">' +
+      '<span class="graph-kind kind-' + n.kind + '">' + KINDS[n.kind] + '</span><span>' + esc(n.label) + '</span>' +
+      '<span class="graph-degree">' + connected(n).length + ' 条关联</span></button>';
+  }
   function renderList(nodes) {
-    $('graphList').innerHTML = nodes.length ? nodes.map(function (n) {
-      return '<button class="graph-list-row' + (selectedId === n.id ? ' selected' : '') + '" data-id="' + esc(n.id) + '">' +
-        '<span class="graph-kind kind-' + n.kind + '">' + KINDS[n.kind] + '</span><span>' + esc(n.label) + '</span>' +
-        '<span class="graph-degree">' + connected(n).length + ' 条关联</span></button>';
-    }).join('') : '<div class="empty"><strong>还没有可展示的关系</strong>笔记中的 [[双链]] 和明确的项目关联会出现在这里。</div>';
+    if (!nodes.length) {
+      $('graphList').innerHTML = '<div class="empty"><strong>还没有可展示的关系</strong>笔记中的 [[双链]] 和明确的项目关联会出现在这里。</div>';
+      return;
+    }
+    // 筛选时把「本类型」和「只是关联到本类型」的邻居分开列，避免看起来所有东西都是同一类。
+    var primary = [], others = [];
+    nodes.forEach(function (n) { (selectedKind === 'all' || n.kind === selectedKind ? primary : others).push(n); });
+    var html = primary.map(rowHtml).join('');
+    if (others.length) {
+      html += '<div class="graph-list-split">以上 ' + primary.length + ' 个是' + KINDS[selectedKind] +
+        '，以下 ' + others.length + ' 个只是与它们直接相连</div>' + others.map(rowHtml).join('');
+    }
+    $('graphList').innerHTML = html;
     Array.prototype.forEach.call($('graphList').querySelectorAll('button'), function (b) {
       b.addEventListener('click', function () { selectedId = b.dataset.id; renderDetail(); markSelected(); renderList(visible()); });
     });

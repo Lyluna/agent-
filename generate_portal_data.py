@@ -138,7 +138,7 @@ def extract_fact_summary(body):
 
 def parse_archive(filepath):
     content = read_text(filepath)
-    fname = os.path.basename(filepath).replace(".md", "")
+    fname = os.path.basename(filepath).removesuffix(".md")
     meta, body = parse_frontmatter(content)
 
     # 兼容没有 frontmatter 的存档（其他 agent 生成）：从正文里找标题 / 工具 / 时间
@@ -190,7 +190,7 @@ SYSTEM_FILES = {"_已删除记录", "_索引"}
 def load_facts():
     facts = []
     for filepath in glob.glob(os.path.join(ARCHIVE_DIR, "*.md")):
-        name = os.path.basename(filepath).replace(".md", "")
+        name = os.path.basename(filepath).removesuffix(".md")
         if name in SYSTEM_FILES or name.startswith("_"):
             continue
         try:
@@ -440,8 +440,34 @@ def load_sections():
     }
 
 
+def strip_code(text):
+    """去掉代码块与行内代码。示例里的 [[双链]] 不是真链接。"""
+    text = re.sub(r"```.*?```", "", text, flags=re.S)
+    text = re.sub(r"`[^`\n]*`", "", text)
+    return text
+
+
+def read_frontmatter(text):
+    """只读 YAML frontmatter 的顶层标量，不引入 yaml 依赖。"""
+    m = re.match(r"^---\s*\n(.*?)\n---", text, re.S)
+    if not m:
+        return {}
+    out = {}
+    for line in m.group(1).splitlines():
+        mm = re.match(r"^([A-Za-z_][\w-]*)\s*:\s*(.*)$", line)
+        if mm:
+            out[mm.group(1)] = mm.group(2).strip().strip('"').strip("'")
+    return out
+
+
 def load_relations(facts):
-    """从真实项目/知识笔记提取显式双链。只记链接事实，不做相似度推断。"""
+    """从真实项目/知识笔记提取显式双链。只记链接事实，不做相似度推断。
+
+    三条硬规则：
+    1. 代码块/行内代码里的 [[...]] 是举例，不算关系
+    2. 表格里 [[路径\\|别名]] 的反斜杠转义要还原，否则会造出幽灵节点
+    3. 项目节点必须 frontmatter type == "项目"，索引与收件箱不是项目
+    """
     fact_by_stem = {f["file"][:-3].lower(): f["title"] for f in facts}
     roots = [(os.path.join(VAULT, "04-项目"), "project"),
              (DISTILL_DIR, "knowledge")]
@@ -452,14 +478,42 @@ def load_relations(facts):
             if name.startswith("_") or name in ("蒸馏知识索引.md", "README.md"):
                 continue
             stem = os.path.splitext(name)[0]
-            documents.append((kind, stem, read_text(filepath),
+            raw = read_text(filepath)
+            meta = read_frontmatter(raw)
+            if kind == "project":
+                # 索引、收件箱、方案草稿都不是项目本体
+                if meta.get("type") != "项目":
+                    continue
+                if stem.startswith("收件箱"):
+                    continue
+            documents.append((kind, stem, raw, meta,
                               os.path.relpath(filepath, VAULT).replace("\\", "/")))
-    known = {stem.lower(): (kind, stem) for kind, stem, _, _ in documents}
+
+    known = {}
+    for kind, stem, _, _, _ in documents:
+        known[stem.lower()] = (kind, stem)
+
+    # 全库 md 索引：目标只要是真实笔记，就允许连边（不再限制在项目/知识集合内）
+    vault_stems = {}
+    for filepath in glob.glob(os.path.join(VAULT, "**", "*.md"), recursive=True):
+        if any(part in (".git", "_pylibs", "__pycache__") for part in filepath.split(os.sep)):
+            continue
+        stem = os.path.splitext(os.path.basename(filepath))[0]
+        vault_stems.setdefault(stem.lower(), stem)
+    # 事实存档与项目/知识笔记同名的，优先按事实处理
     nodes, links, seen = [], [], set()
-    for kind, stem, content, path in documents:
-        nodes.append({"kind": kind, "title": stem, "source": path})
-        for raw in re.findall(r"\[\[([^\]]+)\]\]", content):
-            target = raw.split("|", 1)[0].split("#", 1)[0].strip()
+    skipped = {"code": 0, "missing": 0}
+    for kind, stem, raw, meta, path in documents:
+        node = {"kind": kind, "title": stem, "source": path}
+        if meta.get("status"):
+            node["status"] = meta["status"]
+        nodes.append(node)
+        for raw_link in re.findall(r"\[\[([^\]]+)\]\]", strip_code(raw)):
+            # 表格转义：[[路径\|别名]] -> 路径|别名
+            cleaned = raw_link.replace("\\|", "|")
+            target = cleaned.split("|", 1)[0].split("#", 1)[0].strip()
+            if not target:
+                continue
             key = target.split("/")[-1].removesuffix(".md").lower()
             if not key:
                 continue
@@ -467,15 +521,21 @@ def load_relations(facts):
                 dest = {"kind": "fact", "title": fact_by_stem[key]}
             elif key in known:
                 dest = {"kind": known[key][0], "title": known[key][1]}
+            elif key in vault_stems:
+                # 真实笔记但不在项目/知识集合：作为「关联笔记」连边
+                dest = {"kind": "note", "title": vault_stems[key]}
             else:
-                dest = {"kind": "note", "title": target}
+                # 目标在整个库都不存在：不造假节点
+                skipped["missing"] += 1
+                continue
             edge = (kind, stem, dest["kind"], dest["title"])
             if edge not in seen:
                 seen.add(edge)
                 links.append({"sourceKind": kind, "sourceTitle": stem,
                               "targetKind": dest["kind"], "targetTitle": dest["title"],
                               "kind": "显式双链"})
-    print(f"真实关系：{len(nodes)} 篇项目/知识笔记 · {len(links)} 条显式关联")
+    print(f"真实关系：{len(nodes)} 篇项目/知识笔记 · {len(links)} 条显式关联"
+          f"（跳过 {skipped['missing']} 条指向不存在目标的链接）")
     return {"nodes": nodes, "links": links}
 
 

@@ -1288,6 +1288,8 @@ p, li, .fact-sum { text-wrap: pretty; }
 .graph-list-row.selected { background: var(--active); }
 .graph-kind { font-size: 11px; background: transparent; }
 .graph-degree { font-size: 10px; color: var(--faint); white-space: nowrap; }
+/* 筛选后的分组说明：把「本类型」和「只是相连」分开，避免误读成同类。 */
+.graph-list-split { padding: 16px 10px 8px; border-top: 1px solid var(--rule); font-size: 11px; color: var(--faint); }
 .graph-limit { font-size: 11px; color: var(--faint); margin-top: 10px; }
 .graph-note { margin-top: 18px; }
 .graph-open { margin-top: 16px; font-size: 12px; }
