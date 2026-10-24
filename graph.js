@@ -66,16 +66,22 @@
       var list = (roots.length ? roots : nodes).slice().sort(function (a, b) {
         return connected(b).length - connected(a).length;
       }).slice(0, 12);
-      var r = 220;
+      // 两圈交替排布，避免节点少时全挤在一圈、底部标签互相压住
       var dots = list.map(function (n, i) {
-        var a = (i / list.length) * Math.PI * 2 - Math.PI / 2;
-        return nodeMarkup(n, cx + Math.cos(a) * r, cy + Math.sin(a) * (r * 0.72), n.label.length > 20 ? 19 : 0);
+        var half = Math.ceil(list.length / 2);
+        var ring = i % 2;
+        var idx = Math.floor(i / 2);
+        var count = ring === 0 ? half : list.length - half;
+        var a = (idx / Math.max(1, count)) * Math.PI * 2 - Math.PI / 2 + (ring ? Math.PI / Math.max(1, count) : 0);
+        var rx = ring ? 300 : 190, ry = ring ? 210 : 132;
+        return nodeMarkup(n, cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, 18);
       }).join('');
       $('graphCanvas').innerHTML = '<svg viewBox="0 0 ' + w + ' ' + h + '" role="group" aria-label="选择关系入口">' +
         '<text class="graph-hint" x="' + cx + '" y="' + (cy - 24) + '" text-anchor="middle">选一个项目或知识条目，看它的真实关联</text>' +
         '<g class="graph-nodes">' + dots + '</g></svg>';
       bindNodes();
-      $('graphLimit').textContent = '先选一个入口 · 共 ' + graph.nodes.length + ' 个节点、' + graph.links.length + ' 条真实关联';
+      $('graphLimit').textContent = '从 ' + list.length + ' 个项目/知识入口开始 · 全库 ' +
+        graph.nodes.length + ' 个节点、' + graph.links.length + ' 条真实关联，点开一个再看它的邻居';
       return;
     }
 
