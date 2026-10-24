@@ -128,6 +128,8 @@ python "C:\Users\叶伟峰\Documents\MyVault\记忆库门户\generate_portal_dat
 | `styles.css` | 全部样式与明暗主题 |
 | `app.js` | 视图渲染、命令面板、待办结案交互 |
 | `crypto.js` | 客户端解密（PBKDF2 + AES-GCM） |
+| `graph-data.js` | 从已解密数据读取显式双链与明确关联 |
+| `graph.js` | 关系探索：SVG 图、可访问列表、节点详情与内容返回 |
 | `serve_portal.py` | 本地可写服务（静态文件 + `/api/status`），不上传 |
 | `encrypted.bin` | 加密后的记忆数据（上传到 GitHub） |
 | `data.json` | 明文数据（仅本地，gitignore） |
