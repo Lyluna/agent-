@@ -1263,6 +1263,11 @@ p, li, .fact-sum { text-wrap: pretty; }
 .graph-node-dot { fill: var(--muted); }
 .graph-node:hover .graph-node-ring, .graph-node:focus-visible .graph-node-ring, .graph-node.selected .graph-node-ring { stroke: var(--signal); stroke-width: 2; }
 .graph-node.selected text { fill: var(--text); font-weight: 600; }
+/* 焦点节点放大一点，外圈邻居保持小尺寸，一眼看出主次。 */
+.graph-node.focus .graph-node-ring { stroke: var(--signal); stroke-width: 2; }
+.graph-node.focus .graph-node-dot { r: 6; }
+.graph-node.focus text { fill: var(--text); font-weight: 600; font-size: 12px; }
+.graph-hint { fill: var(--faint); font-family: var(--font); font-size: 12px; }
 .graph-map { min-width: 0; overflow: hidden; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300; }
 .graph-list { --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300; }
 .graph-detail { --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300; }

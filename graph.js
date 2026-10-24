@@ -11,18 +11,29 @@
   };
   var graph = { nodes: [], links: [] }, facts = [];
   var selectedKind = 'all', selectedId = '', motion = true;
+  // 渐进展开：默认只画骨架（项目 + 知识），点谁展开谁的邻居。
+  // 154 个节点画一张图，无论怎么排都是毛线团 —— 那正是「关系是乱的」的来源。
+  var expanded = {};
+  var ROOT_KINDS = { project: 1, knowledge: 1 };
   function connected(n) {
     return graph.links.filter(function (l) { return l.source === n.id || l.target === n.id; });
   }
+  function neighborIds(id) {
+    var ids = {};
+    graph.links.forEach(function (l) {
+      if (l.source === id) ids[l.target] = true;
+      else if (l.target === id) ids[l.source] = true;
+    });
+    return ids;
+  }
+  function isRoot(n) { return ROOT_KINDS[n.kind]; }
+  // 列表始终列全部节点（按类型筛选），只有地图用「焦点 + 邻居」，两者分工不同。
   function visible() {
     if (selectedKind === 'all') return graph.nodes.slice();
-    var primary = graph.nodes.filter(function (n) { return n.kind === selectedKind; });
-    var allowed = {};
-    primary.forEach(function (n) { allowed[n.id] = true; });
-    var linked = graph.links.filter(function (l) { return allowed[l.source] || allowed[l.target]; });
-    var ids = {};
-    linked.forEach(function (l) { ids[l.source] = true; ids[l.target] = true; });
-    return graph.nodes.filter(function (n) { return ids[n.id]; });
+    return graph.nodes.filter(function (n) { return n.kind === selectedKind; });
+  }
+  function expand(id) {
+    if (!expanded[id]) expanded[id] = true;
   }
   function counts() {
     var c = {};
@@ -43,51 +54,82 @@
       b.addEventListener('click', function () { selectedKind = b.dataset.kind; selectedId = ''; render(); });
     });
   }
+  /* 自我网络（ego network）：中心一个焦点，外圈只放它的直接邻居。
+     不把全库画成一张图 —— 154 个节点怎么排都是毛线团，那是「关系是乱的」的根源。 */
   function renderMap(nodes) {
     var w = 980, h = 680, cx = w / 2, cy = h / 2;
-    // 筛选时地图只画本类型：邻居留在列表里说明，不画进图，否则一眼看去像全都互相关联。
-    if (selectedKind !== 'all') nodes = nodes.filter(function (n) { return n.kind === selectedKind; });
-    var max = Math.min(nodes.length, 54);
-    var mapNodes = nodes.slice().sort(function (a, b) {
-      var primary = (b.kind === selectedKind) - (a.kind === selectedKind);
-      return primary || connected(b).length - connected(a).length;
-    });
-    var visibleIds = {};
-    mapNodes.slice(0, max).forEach(function (n) { visibleIds[n.id] = true; });
-    // 节点少时把环撑满画布，避免全挤在中心、标签互相压住。
-    var firstRing = Math.min(max, 18);
-    var perRing = Math.max(firstRing, 8);
-    var baseRx = Math.min(360, 150 + perRing * 22);
-    var baseRy = Math.min(240, 95 + perRing * 16);
-    var positioned = mapNodes.slice(0, max).map(function (n, i) {
+    var focus = graph.nodes.filter(function (n) { return n.id === selectedId; })[0];
+
+    // 没有选中时，把「根节点」按度数排成一圈，让人先挑一个入口。
+    if (!focus) {
+      var roots = nodes.filter(function (n) { return isRoot(n); });
+      var list = (roots.length ? roots : nodes).slice().sort(function (a, b) {
+        return connected(b).length - connected(a).length;
+      }).slice(0, 12);
+      var r = 220;
+      var dots = list.map(function (n, i) {
+        var a = (i / list.length) * Math.PI * 2 - Math.PI / 2;
+        return nodeMarkup(n, cx + Math.cos(a) * r, cy + Math.sin(a) * (r * 0.72), n.label.length > 20 ? 19 : 0);
+      }).join('');
+      $('graphCanvas').innerHTML = '<svg viewBox="0 0 ' + w + ' ' + h + '" role="group" aria-label="选择关系入口">' +
+        '<text class="graph-hint" x="' + cx + '" y="' + (cy - 24) + '" text-anchor="middle">选一个项目或知识条目，看它的真实关联</text>' +
+        '<g class="graph-nodes">' + dots + '</g></svg>';
+      bindNodes();
+      $('graphLimit').textContent = '先选一个入口 · 共 ' + graph.nodes.length + ' 个节点、' + graph.links.length + ' 条真实关联';
+      return;
+    }
+
+    var around = connected(focus).map(function (l) {
+      var other = graph.nodes.filter(function (x) { return x.id === (l.source === focus.id ? l.target : l.source); })[0];
+      return other ? { n: other, kind: l.kind } : null;
+    }).filter(Boolean);
+    // 同一条边可能双向，按节点去重
+    var seenOther = {};
+    around = around.filter(function (x) { if (seenOther[x.n.id]) return false; seenOther[x.n.id] = 1; return true; });
+
+    var R = Math.min(300, 150 + around.length * 14);
+    var pos = {};
+    pos[focus.id] = { x: cx, y: cy };
+    var perRing = 14;
+    around.forEach(function (x, i) {
       var ring = Math.floor(i / perRing);
-      var inRing = Math.min(perRing, max - ring * perRing);
-      var angle = (i % perRing) / inRing * Math.PI * 2 - Math.PI / 2;
-      var rx = Math.min(430, baseRx + ring * 90), ry = Math.min(275, baseRy + ring * 80);
-      return { n: n, x: cx + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry };
+      var inRing = Math.min(perRing, around.length - ring * perRing);
+      var a = (i % perRing) / inRing * Math.PI * 2 - Math.PI / 2;
+      var rr = R + ring * 105;
+      pos[x.n.id] = { x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * (rr * 0.74) };
     });
-    var lines = graph.links.filter(function (l) { return visibleIds[l.source] && visibleIds[l.target]; }).map(function (l) {
-      var a = positioned.filter(function (p) { return p.n.id === l.source; })[0];
-      var b = positioned.filter(function (p) { return p.n.id === l.target; })[0];
-      return '<line class="graph-edge" x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '"><title>' + esc(l.kind) + '</title></line>';
+    var lines = around.map(function (x) {
+      var p = pos[x.n.id];
+      return '<line class="graph-edge" x1="' + cx + '" y1="' + cy + '" x2="' + p.x + '" y2="' + p.y +
+        '"><title>' + esc(x.kind) + '</title></line>';
     }).join('');
-    var dots = positioned.map(function (p) {
-      var n = p.n, short = n.label.length > 17 ? n.label.slice(0, 16) + '…' : n.label;
-      return '<g class="graph-node kind-' + n.kind + (selectedId === n.id ? ' selected' : '') +
-        '" data-id="' + esc(n.id) + '" transform="translate(' + p.x + ' ' + p.y + ')" tabindex="0" role="button" aria-label="查看' +
-        esc(KINDS[n.kind] + '：' + n.label) + '"><circle r="9" class="graph-node-ring"/><circle r="4" class="graph-node-dot"/>' +
-        '<text y="25" text-anchor="middle">' + esc(short) + '</text><title>' + esc(n.label) + '</title></g>';
-    }).join('');
-    $('graphCanvas').innerHTML = '<svg viewBox="0 0 ' + w + ' ' + h + '" role="group" aria-label="Markdown 显式关系图">' +
+    var dots = nodeMarkup(focus, cx, cy, 0, 'focus') +
+      around.map(function (x) { return nodeMarkup(x.n, pos[x.n.id].x, pos[x.n.id].y, x.n.label.length > 18 ? 17 : 0); }).join('');
+    $('graphCanvas').innerHTML = '<svg viewBox="0 0 ' + w + ' ' + h + '" role="group" aria-label="' +
+      esc(focus.label) + ' 的真实关联">' +
       '<g class="graph-edges">' + lines + '</g><g class="graph-nodes">' + dots + '</g></svg>';
+    bindNodes();
+    $('graphLimit').textContent = around.length
+      ? '「' + focus.label + '」的直接关联 ' + around.length + ' 条 · 点外圈任意一个继续往下走'
+      : '「' + focus.label + '」暂无显式关联，不自动推断';
+  }
+  function nodeMarkup(n, x, y, cut, extra) {
+    var short = cut && n.label.length > cut ? n.label.slice(0, cut - 1) + '…' : n.label;
+    return '<g class="graph-node kind-' + n.kind + (selectedId === n.id ? ' selected' : '') + (extra ? ' ' + extra : '') +
+      '" data-id="' + esc(n.id) + '" transform="translate(' + x + ' ' + y + ')" tabindex="0" role="button" aria-label="查看' +
+      esc(KINDS[n.kind] + '：' + n.label) + '"><circle r="9" class="graph-node-ring"/><circle r="4" class="graph-node-dot"/>' +
+      '<text y="25" text-anchor="middle">' + esc(short) + '</text><title>' + esc(n.label) + '</title></g>';
+  }
+  function bindNodes() {
     Array.prototype.forEach.call($('graphCanvas').querySelectorAll('.graph-node'), function (el) {
-      function choose() { selectedId = el.dataset.id; renderDetail(); markSelected(); }
+      function choose() {
+        selectedId = el.dataset.id;
+        expand(selectedId);
+        render();
+      }
       el.addEventListener('click', choose);
       el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); } });
     });
-    $('graphLimit').textContent = nodes.length > max ? '图形显示前 ' + max + ' 个节点，列表保留全部 ' + nodes.length + ' 个；请按类型筛选。' :
-      (selectedKind === 'all' ? '显示 ' + nodes.length + ' 个节点 · 只画真实关联，不做相似度推断'
-        : '图上是 ' + nodes.length + ' 个' + KINDS[selectedKind] + '，' + KINDS[selectedKind] + '之间的连线才是同类关联');
   }
   function markSelected() {
     Array.prototype.forEach.call($('graphCanvas').querySelectorAll('.graph-node'), function (el) {
@@ -153,7 +195,9 @@
           }
           return;
         }
-        selectedId = b.dataset.id; renderDetail(); markSelected(); renderList(visible());
+        selectedId = b.dataset.id;
+        expand(selectedId);
+        render();
       });
     });
   }

@@ -297,7 +297,9 @@
         '<div class="fact-detail">' +
           '<div class="detail-bar"><span>完整对话存档</span>' +
           '<span>' + esc(f.tool) + '</span></div>' +
-          '<div class="detail-body">' + esc(f.detail) + '</div>' +
+          // 正文按需渲染：32 条存档合计 38 万字符，一次性塞进 DOM 会让首屏卡住。
+          // 用文件名做键：列表可能被工具筛选过，下标对不上 MEM.facts。
+          '<div class="detail-body" data-file="' + esc(f.file) + '"></div>' +
         '</div>' +
       '</div>' +
       '<div class="fact-side">' +
@@ -310,7 +312,18 @@
 
   function bindFacts(root) {
     Array.prototype.forEach.call(root.querySelectorAll('.fact'), function (el) {
-      function toggle() { el.classList.toggle('open'); }
+      function toggle() {
+        el.classList.toggle('open');
+        // 首次展开时才填正文：首屏只渲染摘要，避免一次解析几十万字符
+        if (el.classList.contains('open')) {
+          var body = el.querySelector('.detail-body');
+          if (body && !body.dataset.filled) {
+            var f = MEM.facts.filter(function (x) { return x.file === body.dataset.file; })[0];
+            if (f) body.textContent = f.detail || '';
+            body.dataset.filled = '1';
+          }
+        }
+      }
       el.addEventListener('click', function (e) {
         if (e.target.closest('button')) return;   // 删除/勾选按钮不展开
         toggle();
