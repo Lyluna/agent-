@@ -153,7 +153,7 @@
     $('searchBtn').style.display = id === 'facts' || id === 'graph' ? 'none' : '';
     document.body.dataset.view = id;
     if (id === 'graph' && globalThis.PortalGraph) PortalGraph.refresh();
-    try { history.replaceState(null, '', location.pathname + '#view=' + id); } catch (e) {}
+    try { history.replaceState(null, '', location.pathname + location.search + '#view=' + id); } catch (e) {}
 
     window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
   }
@@ -1627,6 +1627,8 @@
 
   // 设计验收专用：?shot=<view> 直接载入 data.json 明文渲染，跳过解密
   function shotMode(viewId) {
+    // 先抓查询串：setView 里的 replaceState 会重写 URL
+    var q = location.search || '';
     fetch('data.json', { cache: 'no-cache' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -1640,7 +1642,6 @@
         detectWritable();
 
         // 截图验收用：?openfact=<file> / ?openproject=<stem> 渲染完直接打开
-        var q = location.search || '';
         var of = q.match(/[?&]openfact=([^&]+)/);
         if (of) {
           var row = findFactRow(decodeURIComponent(of[1]));
