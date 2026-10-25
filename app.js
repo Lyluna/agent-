@@ -11,6 +11,7 @@
   var state = {
     view: 'overview',
     tool: 'all',
+    agent: 'all',
     category: 'all',
     theme: 'light',
     paletteIndex: 0,
@@ -327,7 +328,9 @@
     var closed = MEM.intents.filter(isClosed);
     var blocked = projects.filter(function (p) { return p.blocked && p.blocked !== '无'; });
     var active = projects.filter(function (p) { return p.status === '进行中'; });
-    var runs = MEM.facts.slice(0, 8);
+    var runs = MEM.facts.filter(function (f) {
+      return state.agent === 'all' || f.tool === state.agent;
+    }).slice(0, 8);
 
     var html = '<div class="work-stats">' +
       '<div class="stat"><b class="num">' + active.length + '</b><span>个项目在推进</span></div>' +
@@ -362,17 +365,29 @@
 
     html += '<section class="work-block"><div class="section-heading"><span class="section-number">03</span><h2>Agent 运行</h2>' +
       '<button class="text-btn" data-go="facts">全部对话</button></div>' +
-      '<div class="agent-strip">' + agents.map(function (a) {
-        return '<div class="agent"><b>' + esc(a.name) + '</b>' +
-          '<span>' + a.sessions + ' 次 · 最近 ' + esc(a.last || '—') + '</span>' +
-          (a.active ? '<i class="live">' + a.active + ' 进行中</i>' : '') + '</div>';
-      }).join('') + '</div>' +
-      '<div class="runs">' + runs.map(runRow).join('') + '</div></section>';
+      '<div class="agent-strip">' +
+        '<button class="agent' + (state.agent === 'all' ? ' on' : '') + '" data-agent="all">' +
+          '<b>全部</b><span>' + MEM.facts.length + ' 次会话</span></button>' +
+        agents.map(function (a) {
+          return '<button class="agent' + (state.agent === a.name ? ' on' : '') + '" data-agent="' + esc(a.name) + '">' +
+            '<b>' + esc(a.name) + '</b>' +
+            '<span>' + a.sessions + ' 次 · 最近 ' + esc(a.last || '—') + '</span>' +
+            (a.active ? '<i class="live">' + a.active + ' 进行中</i>' : '') + '</button>';
+        }).join('') +
+      '</div>' +
+      '<div class="runs">' + (runs.length ? runs.map(runRow).join('')
+        : '<div class="empty"><strong>这个 Agent 还没有存档</strong></div>') + '</div></section>';
 
     $('view-work').innerHTML = html;
     bindIntentActions($('view-work'));
     Array.prototype.forEach.call($('view-work').querySelectorAll('[data-go]'), function (el) {
       el.addEventListener('click', function () { setView(el.dataset.go); });
+    });
+    Array.prototype.forEach.call($('view-work').querySelectorAll('[data-agent]'), function (el) {
+      el.addEventListener('click', function () {
+        state.agent = el.dataset.agent;
+        renderWork();
+      });
     });
     Array.prototype.forEach.call($('view-work').querySelectorAll('[data-run]'), function (el) {
       el.addEventListener('click', function () {

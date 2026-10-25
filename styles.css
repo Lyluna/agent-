@@ -1515,7 +1515,15 @@ body[data-view="graph"] .page-head { margin-bottom: 24px; }
   flex-direction: column;
   gap: 2px;
   font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
 }
+.agent:hover { border-color: var(--control); }
+.agent:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
+.agent.on { border-color: var(--signal); background: var(--signal-soft); }
+.agent.on b { color: var(--signal); }
 .agent b { font-weight: 600; }
 .agent span { font-size: 11px; color: var(--faint); }
 .agent .live { font-style: normal; }
