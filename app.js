@@ -1603,6 +1603,20 @@
     if (shot) {
       shotMode(shot[1] || 'overview');
       if (/openpalette/.test(query)) setTimeout(openPalette, 600);
+      var op = query.match(/[?&]openproject=([^&]+)/);
+      if (op) setTimeout(function () { openProject(decodeURIComponent(op[1])); }, 800);
+      var of = query.match(/[?&]openfact=([^&]+)/);
+      if (of) {
+        var tries = 0;
+        var want = decodeURIComponent(of[1]);
+        var pick = setInterval(function () {
+          var row = Array.prototype.filter.call(
+            document.querySelectorAll('.fact'),
+            function (r) { return r.dataset.file === want; })[0];
+          if (row) { clearInterval(pick); row.click(); }
+          else if (++tries > 40) clearInterval(pick);
+        }, 200);
+      }
     }
 
     // 支持 index.html#pw=密码 自动解锁（片段不会发送到服务器）
