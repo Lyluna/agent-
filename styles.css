@@ -1875,3 +1875,85 @@ body { line-height: 1.7; letter-spacing: .005em; }
   box-shadow: inset 2px 0 0 var(--signal), inset 0 0 0 1px var(--border);
 }
 :root[data-theme="dark"] .proj { background: var(--surface); border-color: var(--border); }
+
+/* ============================================================
+   2026-10-25 暖色最终版：纸感底色 + 墨绿主按钮 + 大圆角
+   （上一轮被并发提交覆盖过一次，这里是补回后的唯一口径）
+   ============================================================ */
+:root {
+  --ground: #f7f4ef;
+  --surface: #fffefb;
+  --raised: #f1ede6;
+  --active: #e9e4da;
+
+  --border: #e3ded4;
+  --rule: #ece8e0;
+  --control: #c9c2b4;
+
+  --text: #1f1d19;
+  --muted: #5b574f;
+  --faint: #6e6960;
+
+  --signal: #1f6b4a;
+  --signal-soft: #e4f1ea;
+  --warn: #8a5300;
+  --warn-soft: #fbefdd;
+
+  --radius-card: 14px;
+  --radius-control: 9px;
+  --radius-chip: 6px;
+}
+
+:root[data-theme="dark"] {
+  --ground: #14120f;
+  --surface: #1c1a16;
+  --raised: #24211c;
+  --active: #2c2822;
+
+  --border: #302c26;
+  --rule: #262319;
+  --control: #464038;
+
+  --text: #f2efe9;
+  --muted: #a8a29a;
+  --faint: #8f8a81;
+
+  --signal: #5cbd92;
+  --signal-soft: #17302a;
+  --warn: #dda94a;
+  --warn-soft: #2b2418;
+}
+
+/* 纸面：左上一点暖光，避免整页死平 */
+body {
+  background:
+    radial-gradient(1100px 520px at 18% -8%, rgba(255, 252, 244, .9), transparent 62%),
+    var(--ground);
+}
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(1100px 520px at 18% -8%, rgba(60, 54, 44, .35), transparent 62%),
+    var(--ground);
+}
+
+/* 圆角与阴影统一 */
+.proj, .table-wrap, .board-col, .runs, .work-stats, .claim, .pulse-panel, .graph-explorer {
+  border-radius: var(--radius-card);
+}
+.proj:hover { box-shadow: 0 8px 24px -14px rgba(62, 46, 24, .30); }
+.rail-item { border-radius: var(--radius-control); }
+.rail-brand svg { border-radius: 10px; }
+.action-btn, .search-btn, .graph-filter { border-radius: var(--radius-control); }
+.chip-status, .intent-prio { border-radius: 999px; }
+
+/* 侧栏与表格跟着变暖 */
+.rail { background: var(--raised); border-right: 1px solid var(--border); }
+.toolbar { border-bottom-color: var(--rule); }
+thead th { background: var(--raised); border-bottom-color: var(--border); }
+tbody tr:hover td { background: color-mix(in srgb, var(--raised) 60%, transparent); }
+
+/* 深色下选中态更明确 */
+:root[data-theme="dark"] .rail-item[aria-current="true"] {
+  background: var(--active);
+  box-shadow: inset 2px 0 0 var(--signal), inset 0 0 0 1px var(--border);
+}
