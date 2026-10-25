@@ -1618,11 +1618,10 @@
       if (/openpalette/.test(query)) setTimeout(openPalette, 600);
     }
 
-    // 支持 index.html#pw=密码 自动解锁（片段不会发送到服务器）
-    var m = (location.hash || '').match(/pw=([^&]+)/);
-    if (m) {
-      $('passwordInput').value = decodeURIComponent(m[1]);
-      unlock();
+    // 不再支持 #pw= 自动解锁：密码会留在地址栏与浏览器历史里。
+    // 需要自动解锁时用密码管理器，或在本地 serve_portal.py 上手输一次。
+    if (/pw=/.test(location.hash || '')) {
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
     }
   }
 
