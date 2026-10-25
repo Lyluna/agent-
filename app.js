@@ -285,11 +285,15 @@
   // ---------- 工作台：项目 → 任务 → Agent 运行 ----------
   // 只展示真实字段：项目来自 04-项目 的 frontmatter，任务来自待办，运行来自对话存档。
   // 不推算「进度百分比」，也不给没有数据的项目补状态。
-  function projectActivity(title) {
+  // 关系表里的项目名是笔记文件名（stem），而卡片标题是 frontmatter title，两者都要认
+  function projectActivity(p) {
+    var stem = p && p.stem;
+    var title = p && p.title;
     var links = (MEM.relations && MEM.relations.links) || [];
     var out = [];
     links.forEach(function (l) {
-      if (l.sourceTitle !== title || l.targetKind !== 'fact') return;
+      if (l.sourceTitle !== stem && l.sourceTitle !== title) return;
+      if (l.targetKind !== 'fact') return;
       var f = MEM.facts.filter(function (x) { return x.title === l.targetTitle; })[0];
       if (f) out.push(f);
     });
@@ -363,7 +367,7 @@
     var p = (MEM.projects || []).filter(function (x) { return x.stem === stem; })[0];
     if (!p) return;
     var d = p.detail || {};
-    var acts = projectActivity(p.title);
+    var acts = projectActivity(p);
     var tools = {};
     acts.forEach(function (a) { if (a.tool) tools[a.tool] = true; });
     var who = Object.keys(tools);
@@ -409,6 +413,16 @@
         '<span>' + d.acceptDone + ' / ' + d.acceptTotal + ' 条验收完成</span></div>';
     }
 
+    // AI 归纳的近况：只显示在门户，不写回笔记；标明依据与时间
+    if (d.digest && d.digest.text) {
+      var meta = [d.digest.by, d.digest.generatedAt].filter(Boolean).join(' · ');
+      var based = (d.digest.basedOn || []).length;
+      if (based) meta += (meta ? ' · ' : '') + '依据 ' + based + ' 份存档';
+      html += '<div class="drawer-digest"><b>最近进展</b>' +
+        '<p>' + esc(d.digest.text) + '</p>' +
+        (meta ? '<span class="digest-meta">' + esc(meta) + '</span>' : '') + '</div>';
+    }
+
     html += '<dl class="w5">';
     rows.forEach(function (r) {
       html += '<div class="w5-row"><dt>' + esc(r[0]) + '</dt><dd>' +
@@ -427,13 +441,27 @@
       html += '<div class="drawer-block"><b>卡在哪</b><span>' + esc(p.blocked) + '</span></div>';
     }
 
-    if (acts.length) {
-      html += '<h3>相关对话 ' + acts.length + '</h3><div class="drawer-runs">' +
-        acts.slice(0, 6).map(function (f) {
+    // 相关对话：显式双链 + 关键词挂接，来源分开标注，不混为一谈
+    var relFiles = {};
+    acts.forEach(function (f) { relFiles[f.file] = true; });
+    var kwFacts = (d.relatedFacts || []).filter(function (f) { return !relFiles[f.file]; });
+    var runs = acts.map(function (f) {
+      return { file: f.file, date: f.date, tool: f.tool, title: f.title, why: '显式链接' };
+    }).concat(kwFacts.map(function (f) {
+      return { file: f.file, date: f.date, tool: f.tool, title: f.title, why: '关键词「' + f.via + '」' };
+    })).sort(function (a, b) {
+      return String(b.date || '').localeCompare(String(a.date || ''));
+    });
+
+    if (runs.length) {
+      html += '<h3>相关对话 ' + runs.length +
+        ' <em class="muted">（' + acts.length + ' 条显式链接 · ' + kwFacts.length + ' 条关键词匹配）</em></h3>' +
+        '<div class="drawer-runs">' + runs.slice(0, 8).map(function (f) {
           return '<button class="run" data-fact="' + esc(f.file) + '">' +
             '<span class="run-date">' + esc(f.date) + '</span>' +
             '<span class="run-tool">' + esc(f.tool) + '</span>' +
-            '<span class="run-title">' + esc(f.title) + '</span></button>';
+            '<span class="run-title">' + esc(f.title) + '</span>' +
+            '<span class="run-why">' + esc(f.why) + '</span></button>';
         }).join('') + '</div>';
     }
 
@@ -481,7 +509,7 @@
   function projectCard(p) {
     var status = p.status || '未标注';
     var blocked = p.blocked && p.blocked !== '无' ? p.blocked : '';
-    var acts = projectActivity(p.title);
+    var acts = projectActivity(p);
     var last = acts[0];
     return '<article class="proj" data-status="' + esc(status) + '" data-project="' + esc(p.stem) +
       '" tabindex="0" role="button" aria-label="打开项目：' + esc(p.title) + '">' +
