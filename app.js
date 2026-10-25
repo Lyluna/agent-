@@ -297,12 +297,152 @@
     return out;
   }
 
+  // ── 项目详情抽屉：5W / 进度 / 验收 / 相关对话 ──
+  function projectPrompt(p) {
+    var d = p.detail || {};
+    return [
+      '继续项目：' + p.title,
+      '项目笔记：' + (p.path || ''),
+      '状态：' + (p.status || '—') + ' · 优先级：' + (p.priority || '—') +
+        ' · 最近更新：' + (p.updated || '—'),
+      d.acceptTotal ? '验收进度：' + d.acceptDone + ' / ' + d.acceptTotal : '',
+      p.next ? '下一步：' + p.next : '',
+      (p.blocked && p.blocked !== '无') ? '卡点：' + p.blocked : '',
+      '',
+      '请先读项目笔记和最近相关对话，再在此基础上继续推进，不要从头重来。'
+    ].filter(Boolean).join('\n');
+  }
+
+  function copyText(text, done) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done && done(true); })
+        .catch(function () { done && done(false); });
+      return;
+    }
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done && done(ok);
+  }
+
+  function closeDrawer() {
+    var el = $('projectDrawer');
+    if (!el) return;
+    el.hidden = true;
+    document.body.classList.remove('drawer-open');
+  }
+
+  function openProject(stem) {
+    var p = (MEM.projects || []).filter(function (x) { return x.stem === stem; })[0];
+    if (!p) return;
+    var d = p.detail || {};
+    var acts = projectActivity(p.title);
+    var tools = {};
+    acts.forEach(function (a) { if (a.tool) tools[a.tool] = true; });
+    var who = Object.keys(tools);
+
+    var rows = [
+      ['是什么', d.what, '项目笔记加「## 项目目标」'],
+      ['为什么', d.why, '项目笔记加「## 为什么做」'],
+      ['谁在做', who.length ? '你 + ' + who.join('、') : '你', ''],
+      ['什么时候', [p.updated ? '最近更新 ' + p.updated : '',
+                    p.status ? '状态 ' + p.status : ''].filter(Boolean).join(' · '), ''],
+      ['在哪', p.path || '', ''],
+      ['怎么做', [p.next ? '下一步：' + p.next : '', d.how || ''].filter(Boolean).join('\n'),
+        '项目笔记加「## 实施方案」']
+    ];
+
+    var html = '<div class="drawer-head">' +
+      '<span class="chip chip-status">' + esc(p.status || '未标注') + '</span>' +
+      '<span class="drawer-folder">' + esc(p.folder || '') + '</span></div>' +
+      '<h2 id="drawerTitle">' + esc(p.title) + '</h2>';
+
+    if (d.acceptTotal) {
+      var pct = Math.round(d.acceptDone / d.acceptTotal * 100);
+      html += '<div class="drawer-progress"><div class="bar"><i style="width:' + pct + '%"></i></div>' +
+        '<span>' + d.acceptDone + ' / ' + d.acceptTotal + ' 条验收完成</span></div>';
+    }
+
+    html += '<dl class="w5">';
+    rows.forEach(function (r) {
+      html += '<div class="w5-row"><dt>' + esc(r[0]) + '</dt><dd>' +
+        (r[1] ? esc(r[1]) : '<em class="muted">' + esc(r[2] || '笔记里还没写') + '</em>') +
+        '</dd></div>';
+    });
+    html += '</dl>';
+
+    if (d.checklist && d.checklist.length) {
+      html += '<h3>验收清单</h3><ul class="drawer-check">' + d.checklist.map(function (c) {
+        return '<li class="' + (c.done ? 'done' : '') + '"><i></i>' + esc(c.text) + '</li>';
+      }).join('') + '</ul>';
+    }
+
+    if (p.blocked && p.blocked !== '无') {
+      html += '<div class="drawer-block"><b>卡在哪</b><span>' + esc(p.blocked) + '</span></div>';
+    }
+
+    if (acts.length) {
+      html += '<h3>相关对话 ' + acts.length + '</h3><div class="drawer-runs">' +
+        acts.slice(0, 6).map(function (f) {
+          return '<button class="run" data-fact="' + esc(f.file) + '">' +
+            '<span class="run-date">' + esc(f.date) + '</span>' +
+            '<span class="run-tool">' + esc(f.tool) + '</span>' +
+            '<span class="run-title">' + esc(f.title) + '</span></button>';
+        }).join('') + '</div>';
+    }
+
+    html += '<div class="drawer-actions">' +
+      '<button class="action-btn" data-copy-project>复制续接指令</button>' +
+      '<button class="text-btn" data-open-obsidian>在 Obsidian 打开</button>' +
+      '</div>';
+
+    $('drawerBody').innerHTML = html;
+    $('projectDrawer').hidden = false;
+    document.body.classList.add('drawer-open');
+
+    var copy = $('drawerBody').querySelector('[data-copy-project]');
+    if (copy) copy.addEventListener('click', function () {
+      copyText(projectPrompt(p), function (ok) {
+        copy.textContent = ok ? '已复制，粘到任意 Agent ✓' : '复制失败，请手动选中';
+        setTimeout(function () { copy.textContent = '复制续接指令'; }, 2200);
+      });
+    });
+    var obs = $('drawerBody').querySelector('[data-open-obsidian]');
+    if (obs) obs.addEventListener('click', function () {
+      var file = (p.path || '').replace(/\.md$/i, '');
+      window.open('obsidian://open?vault=MyVault&file=' + encodeURIComponent(file), '_blank');
+    });
+    Array.prototype.forEach.call($('drawerBody').querySelectorAll('[data-fact]'), function (el) {
+      el.addEventListener('click', function () {
+        closeDrawer();
+        setView('facts');
+        var row = document.querySelector('.fact[data-file="' + CSS.escape(el.dataset.fact) + '"]');
+        if (row) {
+          row.classList.add('open');
+          var body = row.querySelector('.detail-body');
+          if (body && !body.dataset.filled) {
+            var f = MEM.facts.filter(function (x) { return x.file === body.dataset.file; })[0];
+            if (f) body.textContent = f.detail || '';
+            body.dataset.filled = '1';
+          }
+          row.scrollIntoView({ block: 'center' });
+          row.focus({ preventScroll: true });
+        }
+      });
+    });
+  }
+
   function projectCard(p) {
     var status = p.status || '未标注';
     var blocked = p.blocked && p.blocked !== '无' ? p.blocked : '';
     var acts = projectActivity(p.title);
     var last = acts[0];
-    return '<article class="proj" data-status="' + esc(status) + '">' +
+    return '<article class="proj" data-status="' + esc(status) + '" data-project="' + esc(p.stem) +
+      '" tabindex="0" role="button" aria-label="打开项目：' + esc(p.title) + '">' +
       '<header><span class="proj-folder"><i class="dot"></i>' + esc(p.folder || '未分类') + '</span>' +
       '<span class="chip chip-status">' + esc(status) + '</span></header>' +
       '<h3>' + esc(p.title) + '</h3>' +
@@ -405,6 +545,12 @@
     bindIntentActions($('view-work'));
     Array.prototype.forEach.call($('view-work').querySelectorAll('[data-go]'), function (el) {
       el.addEventListener('click', function () { setView(el.dataset.go); });
+    });
+    Array.prototype.forEach.call($('view-work').querySelectorAll('[data-project]'), function (el) {
+      el.addEventListener('click', function () { openProject(el.dataset.project); });
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProject(el.dataset.project); }
+      });
     });
     Array.prototype.forEach.call($('view-work').querySelectorAll('[data-agent]'), function (el) {
       el.addEventListener('click', function () {
@@ -1369,6 +1515,17 @@
     $('cloudBtn').addEventListener('click', openCloudSettings);
 
     bindPalette();
+
+    // 项目抽屉：点遮罩或按 Esc 关闭
+    var drawer = $('projectDrawer');
+    if (drawer) {
+      Array.prototype.forEach.call(drawer.querySelectorAll('[data-drawer-close]'), function (el) {
+        el.addEventListener('click', closeDrawer);
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !drawer.hidden) closeDrawer();
+      });
+    }
 
     var query = location.search || '';
     var shot = query.match(/[?&]shot=([a-z]*)/);
