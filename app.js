@@ -329,8 +329,31 @@
     done && done(ok);
   }
 
-  function closeDrawer() {
-    var el = $('projectDrawer');
+  // 从一条事实接着干：把存档位置和摘要打包成一段可直接粘给任意 Agent 的指令
+  function factPrompt(f) {
+    return [
+      '继续这件事：' + f.title,
+      '时间：' + f.date + ' · 工具：' + f.tool,
+      '存档：08-AI记忆/对话存档/' + f.file,
+      f.summary ? '摘要：' + f.summary : '',
+      '',
+      '请先读这份存档，在它的基础上继续推进，不要从头重来。'
+    ].filter(Boolean).join('\n');
+  }
+
+  function isLocalServer() {
+    return /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+  }
+
+  // 存档文件名里有空格和中文，CSS.escape 拼选择器会多出反斜杠；
+  // 直接用 dataset 比对，稳。
+  function findFactRow(file) {
+    return Array.prototype.filter.call(
+      document.querySelectorAll('.fact'),
+      function (r) { return r.dataset.file === file; })[0];
+  }
+
+  function closeDrawer() {    var el = $('projectDrawer');
     if (!el) return;
     el.hidden = true;
     document.body.classList.remove('drawer-open');
@@ -420,7 +443,7 @@
       el.addEventListener('click', function () {
         closeDrawer();
         setView('facts');
-        var row = document.querySelector('.fact[data-file="' + CSS.escape(el.dataset.fact) + '"]');
+        var row = findFactRow(el.dataset.fact);
         if (row) {
           row.classList.add('open');
           var body = row.querySelector('.detail-body');
@@ -561,7 +584,7 @@
     Array.prototype.forEach.call($('view-work').querySelectorAll('[data-run]'), function (el) {
       el.addEventListener('click', function () {
         setView('facts');
-        var row = document.querySelector('.fact[data-file="' + CSS.escape(el.dataset.run) + '"]');
+        var row = findFactRow(el.dataset.run);
         if (row) {
           row.classList.add('open');
           var body = row.querySelector('.detail-body');
@@ -609,6 +632,10 @@
           // 正文按需渲染：32 条存档合计 38 万字符，一次性塞进 DOM 会让首屏卡住。
           // 用文件名做键：列表可能被工具筛选过，下标对不上 MEM.facts。
           '<div class="detail-body" data-file="' + esc(f.file) + '"></div>' +
+          '<div class="detail-actions">' +
+            '<button class="action-btn sm" data-continue="' + esc(f.file) + '">复制续接指令</button>' +
+            '<button class="text-btn" data-terminal="' + esc(f.file) + '">在终端继续</button>' +
+          '</div>' +
         '</div></div>' +
       '</div>' +
       '<div class="fact-side">' +
@@ -646,6 +673,48 @@
         el.style.setProperty('--mx', (e.clientX - r.left) + 'px');
         el.style.setProperty('--my', (e.clientY - r.top) + 'px');
       }, { passive: true });
+    });
+
+    // 从这条事实继续：复制指令 / 本地直接开终端
+    Array.prototype.forEach.call(root.querySelectorAll('[data-continue]'), function (el) {
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var f = MEM.facts.filter(function (x) { return x.file === el.dataset.continue; })[0];
+        if (!f) return;
+        copyText(factPrompt(f), function (ok) {
+          el.textContent = ok ? '已复制 ✓' : '复制失败';
+          setTimeout(function () { el.textContent = '复制续接指令'; }, 1800);
+        });
+      });
+    });
+
+    Array.prototype.forEach.call(root.querySelectorAll('[data-terminal]'), function (el) {
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var f = MEM.facts.filter(function (x) { return x.file === el.dataset.terminal; })[0];
+        if (!f) return;
+        if (!isLocalServer()) {
+          copyText(factPrompt(f), function () {
+            el.textContent = '线上开不了终端，指令已复制';
+            setTimeout(function () { el.textContent = '在终端继续'; }, 2400);
+          });
+          return;
+        }
+        el.textContent = '正在打开终端…';
+        fetch('/api/resume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: factPrompt(f), file: f.file })
+        }).then(function (r) { return r.json(); })
+          .then(function (res) {
+            el.textContent = res.ok ? '终端已打开 ✓' : ('失败：' + (res.error || '未知错误'));
+            setTimeout(function () { el.textContent = '在终端继续'; }, 2600);
+          })
+          .catch(function () {
+            el.textContent = '本地服务不可用';
+            setTimeout(function () { el.textContent = '在终端继续'; }, 2600);
+          });
+      });
     });
 
     Array.prototype.forEach.call(root.querySelectorAll('.del-btn'), function (el) {
@@ -1534,8 +1603,6 @@
     if (shot) {
       shotMode(shot[1] || 'overview');
       if (/openpalette/.test(query)) setTimeout(openPalette, 600);
-      var op = query.match(/[?&]openproject=([^&]+)/);
-      if (op) setTimeout(function () { openProject(decodeURIComponent(op[1])); }, 800);
     }
 
     // 支持 index.html#pw=密码 自动解锁（片段不会发送到服务器）
@@ -1559,6 +1626,17 @@
         renderAll();
         setView(viewId || 'overview');
         detectWritable();
+
+        // 截图验收用：?openfact=<file> / ?openproject=<stem> 渲染完直接打开
+        var q = location.search || '';
+        var of = q.match(/[?&]openfact=([^&]+)/);
+        if (of) {
+          var row = findFactRow(decodeURIComponent(of[1]));
+          if (row) row.click();
+        }
+        var op = q.match(/[?&]openproject=([^&]+)/);
+        if (op) openProject(decodeURIComponent(op[1]));
+
         document.documentElement.setAttribute('data-shot', 'done');
       })
       .catch(function () {

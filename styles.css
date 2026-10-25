@@ -2030,3 +2030,19 @@ body.drawer-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .drawer-panel, .drawer-backdrop { animation: none; }
 }
+
+/* 事实详情里的「继续」动作条 */
+.detail-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 14px 0 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.action-btn.sm {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
