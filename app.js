@@ -377,9 +377,16 @@
       mentions.map(function (m) { return '· ' + m.name + '（' + m.kind + '）'; }).join('\n') : '');
     var toolsText = d.newTools || (mentionLine('工具') ? '笔记里提到的：\n' + mentionLine('工具') : '');
     var skillsText = d.newSkills || (mentionLine('技能') ? '笔记里提到的：\n' + mentionLine('技能') : '');
+    // 做到哪一步：笔记里的「当前进度」+ 验收完成度，两者都真实才算
+    var progressText = [d.progress || '',
+      d.acceptTotal ? '验收：' + d.acceptDone + ' / ' + d.acceptTotal + ' 条完成' : ''
+    ].filter(Boolean).join('\n');
+    // 「怎么做」优先用笔记里的下一步清单，没有再退回 frontmatter 的一行 next
+    var howText = d.how || (p.next ? '下一步：' + p.next : '');
 
     var rows = [
       ['是什么', d.what, '项目笔记加「## 项目简介」'],
+      ['做到哪一步', progressText, '项目笔记加「## 当前进度」'],
       ['运用了什么', stackText, '项目笔记加「## 用了什么」'],
       ['为什么', d.why, '项目笔记加「## 为什么这样选」'],
       ['新增工具', toolsText, '项目笔记加「## 新增工具」'],
@@ -388,8 +395,7 @@
       ['什么时候', [p.updated ? '最近更新 ' + p.updated : '',
                     p.status ? '状态 ' + p.status : ''].filter(Boolean).join(' · '), ''],
       ['在哪', p.path || '', ''],
-      ['怎么做', [p.next ? '下一步：' + p.next : '', d.how || ''].filter(Boolean).join('\n'),
-        '项目笔记加「## 实施方案」']
+      ['怎么做', howText, '项目笔记加「## 实施方案」或「## 下一步」']
     ];
 
     var html = '<div class="drawer-head">' +
