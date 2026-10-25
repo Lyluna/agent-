@@ -5,7 +5,15 @@
   'use strict';
 
   function text(v) { return String(v == null ? '' : v); }
-  function clean(v) { return text(v).replace(/^\[\[|\]\]$/g, '').replace(/\\?\|.*$/, '').replace(/#.*$/, '').trim(); }
+  var PLACEHOLDER = /^(\.{2,}|…|Note Name|双链|wikilink|image\.(png|jpe?g|gif|webp)|document\.pdf|旧名|路径|base|\.\.\.)$/i;
+  function clean(v) {
+    var s = text(v).replace(/^\[\[|\]\]$/g, '').replace(/\\?\|.*$/, '').replace(/#.*$/, '').trim();
+    if (PLACEHOLDER.test(s)) return '';
+    if (/\.base$/i.test(s) || s.indexOf('{{') >= 0 || s.indexOf('`') >= 0) return '';
+    return s;
+  }
+  // 代码块/行内代码里的 [[双链]] 是示例，不是真实关系
+  function stripCode(v) { return text(v).replace(/```[\s\S]*?```/g, '').replace(/`[^`]*`/g, ''); }
   function base(v) { return text(v).split('/').pop().replace(/\.md$/i, '').trim(); }
   function id(kind, key) { return kind + ':' + text(key).toLowerCase(); }
 
@@ -48,7 +56,7 @@
       var n = add('fact', f.title, f.summary, '08-AI记忆/对话存档/' + f.file);
       if (!n) return;
       n.file = f.file; n.tool = f.tool; n.date = f.date;
-      n.links = (text(f.detail).match(/\[\[[^\]]+\]\]/g) || []).map(clean);
+      n.links = (stripCode(f.detail).match(/\[\[[^\]]+\]\]/g) || []).map(clean).filter(Boolean);
     });
     (mem.beliefs || []).forEach(function (b) {
       add('belief', b.title || b.statement, b.detail, b.updated);
@@ -97,7 +105,7 @@
     Object.keys(byId).forEach(function (key) {
       var n = byId[key];
       if (n.kind === 'fact') return;
-      (text(n.detail).match(/\[\[[^\]]+\]\]/g) || []).forEach(function (raw) {
+      (stripCode(n.detail).match(/\[\[[^\]]+\]\]/g) || []).forEach(function (raw) {
         link(n, resolve(raw, 'note'), '显式双链');
       });
     });
