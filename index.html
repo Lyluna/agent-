@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="跨 agent 共享记忆库 · 客户端解密的加密门户">
-<title>脉络 · 个人记忆与知识工作台</title>
+<title>记忆库 · 脉络 · 个人工作台</title>
 <meta name="theme-color" content="#f6f7f5">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -52,7 +52,7 @@
         <rect x="3.5" y="10.5" width="17" height="10.5" rx="2"/>
         <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/>
       </svg>
-      <span class="brand-word">脉络<span class="brand-sub">记忆与知识工作台</span></span>
+      <span class="brand-word">脉络<span class="brand-sub">记忆库 · 个人工作台</span></span>
     </div>
 
     <nav class="rail-nav" id="railNav" aria-label="分区"></nav>
@@ -131,9 +131,19 @@
   </div>
 </div>
 
+<!-- 项目详情抽屉：点项目卡打开，展示 5W / 进度 / 验收 -->
+<div id="projectDrawer" class="drawer" hidden>
+  <div class="drawer-backdrop" data-drawer-close></div>
+  <aside class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+    <button class="drawer-close" data-drawer-close aria-label="关闭">×</button>
+    <div class="drawer-body" id="drawerBody"></div>
+  </aside>
+</div>
+
 <script src="crypto.js"></script>
 <script src="graph-data.js"></script>
 <script src="graph.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
+
