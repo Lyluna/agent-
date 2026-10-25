@@ -368,9 +368,22 @@
     acts.forEach(function (a) { if (a.tool) tools[a.tool] = true; });
     var who = Object.keys(tools);
 
+    var mentions = d.mentions || [];
+    function mentionLine(kind) {
+      return mentions.filter(function (m) { return m.kind === kind; })
+        .map(function (m) { return '· ' + m.name; }).join('\n');
+    }
+    var stackText = d.stack || (mentions.length ? '笔记里提到的：\n' +
+      mentions.map(function (m) { return '· ' + m.name + '（' + m.kind + '）'; }).join('\n') : '');
+    var toolsText = d.newTools || (mentionLine('工具') ? '笔记里提到的：\n' + mentionLine('工具') : '');
+    var skillsText = d.newSkills || (mentionLine('技能') ? '笔记里提到的：\n' + mentionLine('技能') : '');
+
     var rows = [
-      ['是什么', d.what, '项目笔记加「## 项目目标」'],
-      ['为什么', d.why, '项目笔记加「## 为什么做」'],
+      ['是什么', d.what, '项目笔记加「## 项目简介」'],
+      ['运用了什么', stackText, '项目笔记加「## 用了什么」'],
+      ['为什么', d.why, '项目笔记加「## 为什么这样选」'],
+      ['新增工具', toolsText, '项目笔记加「## 新增工具」'],
+      ['新增技能', skillsText, '项目笔记加「## 新增技能」'],
       ['谁在做', who.length ? '你 + ' + who.join('、') : '你', ''],
       ['什么时候', [p.updated ? '最近更新 ' + p.updated : '',
                     p.status ? '状态 ' + p.status : ''].filter(Boolean).join(' · '), ''],
