@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 门户部署入口（本机）
@@ -31,7 +31,7 @@ except Exception:
     pass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-VAULT = os.path.dirname(HERE)
+VAULT = r"C:\Users\叶伟峰\Documents\MyVault"
 SOURCE_DIR = os.path.join(VAULT, "portal")
 SOURCE_GEN = os.path.join(SOURCE_DIR, "generate.py")
 NO_PUSH = "--no-push" in sys.argv
@@ -120,3 +120,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
