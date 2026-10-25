@@ -19,15 +19,18 @@
 
   var VIEWS = [
     { id: 'overview',  label: '概览',   icon: 'grid' },
+    { id: 'work',      label: '工作台', icon: 'board' },
     { id: 'facts',     label: '事实',   icon: 'clock' },
     { id: 'beliefs',   label: '认知',   icon: 'bulb' },
     { id: 'intents',   label: '待办',   icon: 'check' },
-    { id: 'skills',    label: '技能与工具', icon: 'tool' },
-    { id: 'knowledge', label: '蒸馏知识', icon: 'drop' }
+    { id: 'knowledge', label: '知识', icon: 'drop' },
+    { id: 'graph', label: '关系', icon: 'graph' }
   ];
 
   var ICONS = {
+    graph: '<circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="17" r="2.5"/><circle cx="19" cy="17" r="2.5"/><path d="m10.5 7-4 7.5m7-7.5 4 7.5M7.5 17h9"/>',
     grid:  '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>',
+    board: '<path d="m12 3 8 4.5-8 4.5-8-4.5L12 3z"/><path d="m4 12 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/>',
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     bulb:  '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/>',
     check: '<path d="M4.5 12.5l5 5 10-11"/>',
@@ -55,7 +58,8 @@
   // 非阻塞提示：右下角浮出一条，几秒后自己消失。
   // 不用 alert()——它会打断操作，也不该在每次写完都弹窗。
   function toast(msg, isError) {
-    var box = document.getElementById('toastBox');
+    box.setAttribute('role', 'status');
+    box.setAttribute('aria-live', 'polite');
     if (!box) {
       box = document.createElement('div');
       box.id = 'toastBox';
@@ -102,12 +106,14 @@
   function renderRail() {
     var counts = {
       overview: null,
+      work: (MEM.projects || []).filter(function (p) { return p.blocked && p.blocked !== '无'; }).length || null,
       facts: MEM.facts.length,
       beliefs: MEM.beliefs.length,
       intents: MEM.intents.filter(isPending).length,
-      skills: (MEM.sections.skills ? MEM.sections.skills.count : 0) +
-              (MEM.sections.tools ? MEM.sections.tools.count : 0),
-      knowledge: MEM.sections.distilled ? MEM.sections.distilled.count : 0
+      knowledge: (MEM.sections.distilled ? MEM.sections.distilled.count : 0) +
+                 (MEM.sections.skills ? MEM.sections.skills.count : 0) +
+                 (MEM.sections.tools ? MEM.sections.tools.count : 0),
+      graph: null
     };
 
     $('railNav').innerHTML = VIEWS.map(function (v) {
@@ -143,7 +149,10 @@
     renderHead();
     // 工具筛选只在「事实」视图有意义
     $('toolFilter').style.display = id === 'facts' ? '' : 'none';
-    $('searchBtn').style.display = id === 'facts' ? 'none' : '';
+    $('searchBtn').style.display = id === 'facts' || id === 'graph' ? 'none' : '';
+    document.body.dataset.view = id;
+    if (id === 'graph' && globalThis.PortalGraph) PortalGraph.refresh();
+    try { history.replaceState(null, '', location.pathname + '#view=' + id); } catch (e) {}
 
     window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
   }
@@ -160,6 +169,12 @@
       finding = '<b class="num">' + MEM.facts.length + '</b> 次对话，' +
         '<b class="num">' + MEM.beliefs.length + '</b> 条结论，' +
         '<b class="num">' + pending.length + '</b> 项待办。';
+    } else if (state.view === 'work') {
+      var ps = MEM.projects || [];
+      var blocked = ps.filter(function (p) { return p.blocked && p.blocked !== '无'; });
+      finding = '<b class="num">' + ps.length + '</b> 个项目，' +
+        '<b class="num">' + blocked.length + '</b> 个卡着，' +
+        '<b class="num">' + pending.length + '</b> 项待办。';
     } else if (state.view === 'facts') {
       finding = '最近一次归档在 <b>' + esc((MEM.facts[0] || {}).date || '-') + '</b>' +
         (live.length ? '，<b class="num">' + live.length + '</b> 个对话仍在进行' : '') + '。';
@@ -170,14 +185,15 @@
         ? '<b class="num">' + pending.length + '</b> 项未完成' +
           (high.length ? '，<b class="num">' + high.length + '</b> 项高优先级' : '') + '。'
         : '所有待办已完成。';
-    } else if (state.view === 'skills') {
+    } else if (state.view === 'knowledge') {
       var sk = MEM.sections.skills || { count: 0 };
       var tl = MEM.sections.tools || { count: 0 };
-      finding = '<b class="num">' + sk.count + '</b> 个技能 · <b class="num">' +
-        tl.count + '</b> 个工具。';
-    } else if (state.view === 'knowledge') {
       var ds = MEM.sections.distilled || { count: 0 };
-      finding = '<b class="num">' + ds.count + '</b> 条可复用结论。';
+      finding = '<b class="num">' + ds.count + '</b> 条可复用结论 · ' +
+        '<b class="num">' + sk.count + '</b> 个技能 · <b class="num">' +
+        tl.count + '</b> 个工具。';
+    } else if (state.view === 'graph') {
+      finding = '从一条对话或知识出发，沿着真实关联找到它的来源。';
     }
 
     $('pageFinding').innerHTML = finding;
@@ -221,60 +237,160 @@
   // ---------- 概览 ----------
   function renderOverview() {
     var p = MEM.profile || {};
-    var html = '';
+    var high = MEM.intents.filter(function (i) { return isPending(i) && i.priority === 'high'; }).slice(0, 4);
+    var live = MEM.facts.filter(function (f) { return f.status === '进行中'; }).length;
+    var latest = MEM.facts[0] || {};
+    var ds = MEM.sections.distilled || { count: 0 };
+    var html = '<section class="welcome">' +
+      '<div class="welcome-copy"><span class="eyebrow">个人工作系统 · 记忆与知识</span>' +
+      '<h2>继续上次的思考，<br>找到这次能用的答案。</h2>' +
+      '<p>' + esc(p.name || '') + '，这里是各 Agent 共用的记忆与知识工作台。对话有来处，结论能复用，下一步有落点。</p>' +
+      '<div class="welcome-actions"><button class="action-btn" data-go="facts">浏览最近对话</button>' +
+      '<button class="text-btn" data-go="graph">探索内容关系 <span aria-hidden="true">↗</span></button></div></div>' +
+      '<div class="pulse-panel" aria-label="当前工作状态">' +
+        '<div class="pulse-top"><span class="status-dot"></span><span>自动归档运行中</span><span class="pulse-date">' + esc(MEM.updated || '') + '</span></div>' +
+        '<div class="pulse-flow"><div><b>' + MEM.facts.length + '</b><span>对话已留档</span></div><i></i><div><b>' + MEM.beliefs.length + '</b><span>结论可回看</span></div><i></i><div><b>' + (ds.count || 0) + '</b><span>知识待复用</span></div></div>' +
+        '<div class="pulse-foot">' + (live ? live + ' 个对话仍在继续' : '当前没有进行中的对话') + '<span>' + (cloudReady() ? '云端写入已连接' : '只读浏览') + '</span></div>' +
+      '</div></section>';
 
-    // 画像
-    html += '<div class="sec-label"><h2>画像</h2><span class="count">跨 agent 共享</span></div>';
-    html += '<p class="sec-note">你是谁、用什么工具、希望 AI 怎么配合你。</p>';
-    html += '<div class="profile">';
+    html += '<div class="overview-grid"><section class="overview-focus"><div class="section-heading"><span class="section-number">01</span><h2>接着处理</h2>' +
+      '<button class="text-btn" data-go="intents">全部待办</button></div>' +
+      (high.length ? '<div class="intents">' + high.map(intentRow).join('') + '</div>' : '<div class="empty"><strong>高优先级已清空</strong>可以从最近沉淀的内容继续整理。</div>') + '</section>' +
+      '<aside class="overview-latest"><div class="section-heading"><span class="section-number">02</span><h2>最新留档</h2></div>' +
+      '<button class="latest-conversation" data-go="facts"><span>' + esc(latest.date || '等待第一次归档') + '</span><strong>' + esc(latest.title || '新的对话会出现在这里') + '</strong><span>打开完整记录 ↗</span></button>' +
+      '<div class="latest-note">不只是存下对话，也留下以后用得上的判断。</div></aside></div>';
 
-    html += '<div class="profile-cell"><h3>基本信息</h3>' +
-      '<div class="val">' + esc(p.name || '—') + '</div>' +
-      '<div class="sub">' + esc(p.role || '') + '</div></div>';
+    html += '<section class="overview-stream"><div class="section-heading"><span class="section-number">03</span><h2>最近的思考轨迹</h2>' +
+      '<button class="text-btn" data-go="facts">查看全部</button></div><div class="facts">' +
+      MEM.facts.slice(0, 4).map(factRow).join('') + '</div></section>';
 
-    if (p.tools && p.tools.length) {
-      html += '<div class="profile-cell"><h3>接入工具</h3><ul>' +
-        p.tools.map(function (t) {
-          return '<li>' + esc(t.name) + (t.usage ? ' — ' + esc(t.usage) : '') + '</li>';
-        }).join('') + '</ul></div>';
-    }
-
-    if (p.preferences && p.preferences.length) {
-      html += '<div class="profile-cell"><h3>沟通偏好</h3><ul>' +
-        p.preferences.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') +
-        '</ul></div>';
-    }
-
-    if (p.rules && p.rules.length) {
-      html += '<div class="profile-cell"><h3>记忆规则</h3><ul>' +
-        p.rules.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') +
-        '</ul></div>';
-    }
-
-    html += '</div>';
-
-    // 最近的对话
-    var recent = MEM.facts.slice(0, 5);
-    if (recent.length) {
-      html += '<div class="sec-label" style="margin-top:34px"><h2>最近的对话</h2>' +
-        '<span class="count">' + MEM.facts.length + ' 条</span></div>';
-      html += '<p class="sec-note">每次对话归档为一条事实，点开可看完整记录。</p>';
-      html += '<div class="facts">' + recent.map(factRow).join('') + '</div>';
-    }
-
-    // 高优先级待办
-    var high = MEM.intents.filter(function (i) {
-      return isPending(i) && i.priority === 'high';
-    }).slice(0, 5);
-    if (high.length) {
-      html += '<div class="sec-label" style="margin-top:34px"><h2>高优先级待办</h2>' +
-        '<span class="count">' + high.length + ' 项</span></div>';
-      html += '<p class="sec-note">下一步最该动的事。</p>';
-      html += '<div class="intents">' + high.map(intentRow).join('') + '</div>';
-    }
+    html += '<details class="profile-details"><summary>关于这个工作台 <span>共享工具、沟通偏好与使用规则</span></summary>' +
+      '<div class="profile"><div class="profile-cell"><h3>使用者</h3><div class="val">' + esc(p.name || '—') + '</div><div class="sub">' + esc(p.role || '') + '</div></div>' +
+      '<div class="profile-cell"><h3>接入工具</h3><ul>' + (p.tools || []).map(function (t) { return '<li>' + esc(t.name) + ' · ' + esc(t.usage || '') + '</li>'; }).join('') + '</ul></div>' +
+      '<div class="profile-cell"><h3>沟通偏好</h3><ul>' + (p.preferences || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div></details>';
 
     $('view-overview').innerHTML = html;
     bindFacts($('view-overview'));
+    bindIntentActions($('view-overview'));
+    Array.prototype.forEach.call($('view-overview').querySelectorAll('[data-go]'), function (el) {
+      el.addEventListener('click', function () { setView(el.dataset.go); });
+    });
+  }
+
+  // ---------- 工作台：项目 → 任务 → Agent 运行 ----------
+  // 只展示真实字段：项目来自 04-项目 的 frontmatter，任务来自待办，运行来自对话存档。
+  // 不推算「进度百分比」，也不给没有数据的项目补状态。
+  function projectActivity(title) {
+    var links = (MEM.relations && MEM.relations.links) || [];
+    var out = [];
+    links.forEach(function (l) {
+      if (l.sourceTitle !== title || l.targetKind !== 'fact') return;
+      var f = MEM.facts.filter(function (x) { return x.title === l.targetTitle; })[0];
+      if (f) out.push(f);
+    });
+    out.sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
+    return out;
+  }
+
+  function projectCard(p) {
+    var status = p.status || '未标注';
+    var blocked = p.blocked && p.blocked !== '无' ? p.blocked : '';
+    var acts = projectActivity(p.title);
+    var last = acts[0];
+    return '<article class="proj" data-status="' + esc(status) + '">' +
+      '<header><span class="proj-folder">' + esc(p.folder || '未分类') + '</span>' +
+      '<span class="chip chip-status">' + esc(status) + '</span></header>' +
+      '<h3>' + esc(p.title) + '</h3>' +
+      (p.next ? '<p class="proj-line"><span class="k">下一步</span>' + esc(p.next) + '</p>' : '') +
+      (blocked ? '<p class="proj-line warn"><span class="k">卡点</span>' + esc(blocked) + '</p>' : '') +
+      '<footer><span>' + esc(p.updated || '未记录更新') + '</span>' +
+      (p.priority ? '<span>' + esc(p.priority) + '优先级</span>' : '') +
+      (last ? '<span>最近 ' + esc(last.tool) + ' · ' + esc((last.date || '').slice(5)) + '</span>' : '') +
+      (acts.length > 1 ? '<span>' + acts.length + ' 条关联对话</span>' : '') +
+      '</footer></article>';
+  }
+
+  function runRow(f) {
+    return '<button class="run" data-run="' + esc(f.file) + '">' +
+      '<span class="run-date">' + esc(f.date) + '</span>' +
+      '<span class="run-tool">' + esc(f.tool) + '</span>' +
+      '<span class="run-title">' + esc(f.title) + '</span>' +
+      (f.status === '进行中' ? '<span class="live">进行中</span>' : '') +
+      '</button>';
+  }
+
+  function renderWork() {
+    var projects = MEM.projects || [];
+    var agents = MEM.agents || [];
+    var pending = MEM.intents.filter(isPending);
+    var confirm = MEM.intents.filter(isToConfirm);
+    var closed = MEM.intents.filter(isClosed);
+    var blocked = projects.filter(function (p) { return p.blocked && p.blocked !== '无'; });
+    var active = projects.filter(function (p) { return p.status === '进行中'; });
+    var runs = MEM.facts.slice(0, 8);
+
+    var html = '<div class="work-stats">' +
+      '<div class="stat"><b class="num">' + active.length + '</b><span>个项目在推进</span></div>' +
+      '<div class="stat' + (blocked.length ? ' warn' : '') + '"><b class="num">' + blocked.length + '</b><span>个卡着等你</span></div>' +
+      '<div class="stat"><b class="num">' + pending.length + '</b><span>项待办未完成</span></div>' +
+      '<div class="stat"><b class="num">' + agents.length + '</b><span>个 Agent 有记录</span></div>' +
+      '</div>';
+
+    html += '<section class="work-block"><div class="section-heading"><span class="section-number">01</span><h2>项目</h2>' +
+      '<span class="count">' + projects.length + ' 个</span></div>' +
+      (projects.length ? '<div class="proj-grid">' + projects.map(projectCard).join('') + '</div>'
+        : '<div class="empty"><strong>还没有项目笔记</strong>在 04-项目 下新建，并把 type 设为「项目」。</div>') +
+      '</section>';
+
+    html += '<section class="work-block"><div class="section-heading"><span class="section-number">02</span><h2>任务</h2>' +
+      '<button class="text-btn" data-go="intents">全部待办</button></div>' +
+      '<div class="board">' +
+        '<div class="board-col"><div class="board-head">待处理<span class="count">' + pending.length + '</span></div>' +
+          (pending.length ? '<div class="intents">' + pending.slice(0, 6).map(intentRow).join('') + '</div>'
+            : '<div class="empty"><strong>待办已清空</strong></div>') +
+          (pending.length > 6 ? '<button class="text-btn board-more" data-go="intents">还有 ' + (pending.length - 6) + ' 项 →</button>' : '') +
+        '</div>' +
+        '<div class="board-col"><div class="board-head">待确认结案<span class="count">' + confirm.length + '</span></div>' +
+          (confirm.length ? '<div class="intents">' + confirm.slice(0, 4).map(intentRow).join('') + '</div>'
+            : '<div class="empty"><strong>没有待确认</strong></div>') +
+        '</div>' +
+        '<div class="board-col"><div class="board-head">最近结案<span class="count">' + closed.length + '</span></div>' +
+          (closed.length ? '<div class="intents">' + closed.slice(0, 4).map(intentRow).join('') + '</div>'
+            : '<div class="empty"><strong>还没有结案</strong></div>') +
+        '</div>' +
+      '</div></section>';
+
+    html += '<section class="work-block"><div class="section-heading"><span class="section-number">03</span><h2>Agent 运行</h2>' +
+      '<button class="text-btn" data-go="facts">全部对话</button></div>' +
+      '<div class="agent-strip">' + agents.map(function (a) {
+        return '<div class="agent"><b>' + esc(a.name) + '</b>' +
+          '<span>' + a.sessions + ' 次 · 最近 ' + esc(a.last || '—') + '</span>' +
+          (a.active ? '<i class="live">' + a.active + ' 进行中</i>' : '') + '</div>';
+      }).join('') + '</div>' +
+      '<div class="runs">' + runs.map(runRow).join('') + '</div></section>';
+
+    $('view-work').innerHTML = html;
+    bindIntentActions($('view-work'));
+    Array.prototype.forEach.call($('view-work').querySelectorAll('[data-go]'), function (el) {
+      el.addEventListener('click', function () { setView(el.dataset.go); });
+    });
+    Array.prototype.forEach.call($('view-work').querySelectorAll('[data-run]'), function (el) {
+      el.addEventListener('click', function () {
+        setView('facts');
+        var row = document.querySelector('.fact[data-file="' + CSS.escape(el.dataset.run) + '"]');
+        if (row) {
+          row.classList.add('open');
+          var body = row.querySelector('.detail-body');
+          if (body && !body.dataset.filled) {
+            var f = MEM.facts.filter(function (x) { return x.file === body.dataset.file; })[0];
+            if (f) body.textContent = f.detail || '';
+            body.dataset.filled = '1';
+          }
+          row.scrollIntoView({ block: 'center' });
+          row.focus({ preventScroll: true });
+        }
+      });
+    });
   }
 
   // ---------- 事实 ----------
@@ -301,11 +417,15 @@
       '<div class="fact-main">' +
         '<div class="fact-title">' + pick + esc(f.title) + '</div>' +
         '<div class="fact-sum">' + esc(f.summary) + '</div>' +
-        '<div class="fact-detail">' +
+        // 内层再包一层：grid-template-rows 0fr→1fr 只能撑开一行，
+        // 直接放两个子元素会留下一条隐式 auto 行，收起时高度不为 0。
+        '<div class="fact-detail"><div class="detail-inner">' +
           '<div class="detail-bar"><span>完整对话存档</span>' +
           '<span>' + esc(f.tool) + '</span></div>' +
-          '<div class="detail-body">' + esc(f.detail) + '</div>' +
-        '</div>' +
+          // 正文按需渲染：32 条存档合计 38 万字符，一次性塞进 DOM 会让首屏卡住。
+          // 用文件名做键：列表可能被工具筛选过，下标对不上 MEM.facts。
+          '<div class="detail-body" data-file="' + esc(f.file) + '"></div>' +
+        '</div></div>' +
       '</div>' +
       '<div class="fact-side">' +
         (live ? '<span class="live">进行中</span>' : '') +
@@ -317,7 +437,18 @@
 
   function bindFacts(root) {
     Array.prototype.forEach.call(root.querySelectorAll('.fact'), function (el) {
-      function toggle() { el.classList.toggle('open'); }
+      function toggle() {
+        el.classList.toggle('open');
+        // 首次展开时才填正文：首屏只渲染摘要，避免一次解析几十万字符
+        if (el.classList.contains('open')) {
+          var body = el.querySelector('.detail-body');
+          if (body && !body.dataset.filled) {
+            var f = MEM.facts.filter(function (x) { return x.file === body.dataset.file; })[0];
+            if (f) body.textContent = f.detail || '';
+            body.dataset.filled = '1';
+          }
+        }
+      }
       el.addEventListener('click', function (e) {
         if (e.target.closest('button')) return;   // 删除/勾选按钮不展开
         toggle();
@@ -325,6 +456,12 @@
       el.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
       });
+      // 指针柔光的坐标。只在精确指向设备上生效，触屏的 pointermove 会被 CSS 挡掉。
+      el.addEventListener('pointermove', function (e) {
+        var r = el.getBoundingClientRect();
+        el.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+        el.style.setProperty('--my', (e.clientY - r.top) + 'px');
+      }, { passive: true });
     });
 
     Array.prototype.forEach.call(root.querySelectorAll('.del-btn'), function (el) {
@@ -564,7 +701,7 @@
         : '<button class="close-btn copy" data-task="' + esc(t.task) + '" data-action="close">复制结案指令</button>';
     }
 
-    return '<div class="' + cls + '">' +
+    return '<div class="' + cls + '" data-task-row="' + esc(t.task) + '" tabindex="-1">' +
       box +
       '<div class="intent-text">' + esc(t.task) + '</div>' +
       '<div class="intent-act">' + action + '</div>' +
@@ -907,30 +1044,25 @@
     return html + '</tbody></table></div>';
   }
 
-  function renderSkills() {
+  function renderKnowledge() {
+    var ds = MEM.sections.distilled || { rows: [], count: 0 };
     var sk = MEM.sections.skills || { rows: [], count: 0 };
     var tl = MEM.sections.tools || { rows: [], count: 0 };
 
-    var html = '<div class="sec-label"><h2>技能</h2>' +
+    var html = '<div class="sec-label"><h2>可复用结论</h2>' +
+      '<span class="count">' + (ds.count || 0) + ' 条</span></div>';
+    html += '<p class="sec-note">一条知识一个文件。过不了「换场景还用得上吗」这三问的，留在项目笔记里。</p>';
+    html += tableSection(ds, '还没有蒸馏知识');
+
+    html += '<div class="sec-label" style="margin-top:38px"><h2>技能</h2>' +
       '<span class="count">' + (sk.count || 0) + ' 个</span></div>';
     html += '<p class="sec-note">Agent 可复用的流程。一个技能一个目录，里面是 SKILL.md。</p>';
     html += tableSection(sk, '还没有登记技能');
 
-    html += '<div class="sec-label" style="margin-top:34px"><h2>工具</h2>' +
+    html += '<div class="sec-label" style="margin-top:38px"><h2>工具</h2>' +
       '<span class="count">' + (tl.count || 0) + ' 个</span></div>';
     html += '<p class="sec-note">拿来就能跑的东西：命令行、脚本、外部服务、API。</p>';
     html += tableSection(tl, '还没有登记工具');
-
-    $('view-skills').innerHTML = html;
-  }
-
-  function renderKnowledge() {
-    var ds = MEM.sections.distilled || { rows: [], count: 0 };
-
-    var html = '<div class="sec-label"><h2>知识条目</h2>' +
-      '<span class="count">' + (ds.count || 0) + ' 条</span></div>';
-    html += '<p class="sec-note">一条知识一个文件。过不了「换场景还用得上吗」这三问的，留在项目笔记里。</p>';
-    html += tableSection(ds, '还没有蒸馏知识');
 
     $('view-knowledge').innerHTML = html;
   }
@@ -956,7 +1088,7 @@
       rows.push({
         kind: '待办', view: 'intents',
         text: t.task, sub: (t.priority || '') + (t.done ? ' 已完成' : ''),
-        target: { type: 'view', view: 'intents' }
+        target: { type: 'intent', task: t.task }
       });
     });
     ['skills', 'tools'].forEach(function (k) {
@@ -965,9 +1097,9 @@
       sec.rows.forEach(function (r) {
         var vals = Object.keys(r).map(function (x) { return r[x]; });
         rows.push({
-          kind: k === 'skills' ? '技能' : '工具', view: 'skills',
+          kind: k === 'skills' ? '技能' : '工具', view: 'knowledge',
           text: vals[0], sub: vals.slice(1).join(' · '),
-          target: { type: 'view', view: 'skills' }
+          target: { type: 'view', view: 'knowledge' }
         });
       });
     });
@@ -1042,16 +1174,25 @@
       setView(hit.target.view);
     } else if (hit.target.type === 'fact') {
       setView('facts');
-      // 等一帧让视图渲染完，再展开对应条目
-      requestAnimationFrame(function () {
-        var rows = document.querySelectorAll('#view-facts .fact');
-        var row = rows[hit.target.idx];
-        if (row) {
-          row.classList.add('open');
-          row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          row.focus();
-        }
-      });
+      // 视图只切换 class，DOM 已存在，直接定位；不依赖 rAF（后台标签页会暂停）
+      var factRow = document.querySelectorAll('#view-facts .fact')[hit.target.idx];
+      if (factRow) {
+        factRow.classList.add('open');
+        factRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        factRow.focus();
+      }
+    } else if (hit.target.type === 'intent') {
+      setView('intents');
+      var taskRow = Array.prototype.filter.call(
+        document.querySelectorAll('#view-intents .intent'),
+        function (el) { return el.dataset.taskRow === hit.target.task; }
+      )[0];
+      if (taskRow) {
+        taskRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        taskRow.focus();
+        taskRow.classList.add('located');
+        setTimeout(function () { taskRow.classList.remove('located'); }, 1600);
+      }
     }
   }
 
@@ -1099,8 +1240,8 @@
         $('palette').classList.contains('open') ? closePalette() : openPalette();
       }
       if (e.key === 'Escape' && $('palette').classList.contains('open')) closePalette();
-      // 数字键 1-6 跳分区（不在输入框里时）
-      if (!mod && /^[1-6]$/.test(e.key) &&
+      // 数字键 1-7 跳分区（不在输入框里时）
+      if (!mod && /^[1-7]$/.test(e.key) &&
           !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
         setView(VIEWS[parseInt(e.key, 10) - 1].id);
       }
@@ -1154,18 +1295,22 @@
     MEM.beliefs = MEM.beliefs || [];
     MEM.beliefCategories = MEM.beliefCategories || [];
     MEM.intents = MEM.intents || [];
+    MEM.projects = MEM.projects || [];
+    MEM.agents = MEM.agents || [];
     MEM.sections = MEM.sections || {};
+    MEM.relations = MEM.relations || { nodes: [], links: [] };
   }
 
   function renderAll() {
     renderRail();
     renderToolFilter();
     renderOverview();
+    renderWork();
     renderFacts();
     renderBeliefs();
     renderIntents();
-    renderSkills();
     renderKnowledge();
+    if (globalThis.PortalGraph) PortalGraph.init(MEM);
   }
 
   function init() {
