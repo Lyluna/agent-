@@ -299,7 +299,7 @@
     var acts = projectActivity(p.title);
     var last = acts[0];
     return '<article class="proj" data-status="' + esc(status) + '">' +
-      '<header><span class="proj-folder">' + esc(p.folder || '未分类') + '</span>' +
+      '<header><span class="proj-folder"><i class="dot"></i>' + esc(p.folder || '未分类') + '</span>' +
       '<span class="chip chip-status">' + esc(status) + '</span></header>' +
       '<h3>' + esc(p.title) + '</h3>' +
       (p.next ? '<p class="proj-line"><span class="k">下一步</span>' + esc(p.next) + '</p>' : '') +

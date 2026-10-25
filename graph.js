@@ -57,7 +57,7 @@
   /* 自我网络（ego network）：中心一个焦点，外圈只放它的直接邻居。
      不把全库画成一张图 —— 154 个节点怎么排都是毛线团，那是「关系是乱的」的根源。 */
   function renderMap(nodes) {
-    var w = 980, h = 680, cx = w / 2, cy = h / 2;
+    var w = 980, h = 600, cx = w / 2, cy = h / 2;
     var focus = graph.nodes.filter(function (n) { return n.id === selectedId; })[0];
 
     // 没有选中时，把「根节点」按度数排成一圈，让人先挑一个入口。
@@ -74,7 +74,7 @@
         var idx = Math.floor(i / 2);
         var count = ring === 0 ? half : list.length - half;
         var a = (idx / Math.max(1, count)) * Math.PI * 2 - Math.PI / 2 + (ring ? Math.PI / Math.max(1, count) : 0);
-        var rx = ring ? 300 : 190, ry = ring ? 210 : 132;
+        var rx = ring ? 400 : 240, ry = ring ? 236 : 148;
         var x = cx + Math.cos(a) * rx, y = cy + Math.sin(a) * ry;
         spot[n.id] = { x: x, y: y };
         return nodeMarkup(n, x, y, 18);
@@ -94,6 +94,7 @@
       });
       $('graphCanvas').innerHTML = '<svg viewBox="0 0 ' + w + ' ' + h + '" role="group" aria-label="选择关系入口">' +
         '<g class="graph-edges">' + inner.join('') + '</g>' +
+        '<g class="graph-satellites">' + satellites(list, spot, inList) + '</g>' +
         '<g class="graph-nodes">' + dots + '</g>' +
         // 提示放最底部：放中间会被内圈节点的标签压住。
         '<text class="graph-hint" x="' + cx + '" y="' + (h - 26) + '" text-anchor="middle">选一个项目或知识条目，看它的真实关联</text></svg>';
@@ -138,6 +139,32 @@
       ? '「' + focus.label + '」的直接关联 ' + around.length + ' 条 · 点外圈任意一个继续往下走'
       : '「' + focus.label + '」暂无显式关联，不自动推断';
   }
+  /* 每个入口外围挂几个真实邻居的小点：
+     画面不至于空，但标签只留给入口，避免一进来就是毛线团。 */
+  function satellites(list, spot, inList) {
+    var byId = {};
+    graph.nodes.forEach(function (n) { byId[n.id] = n; });
+    var out = [];
+    list.forEach(function (n) {
+      var p = spot[n.id];
+      if (!p) return;
+      var ids = Object.keys(neighborIds(n.id)).filter(function (id) {
+        return byId[id] && !inList[id];
+      }).slice(0, 5);
+      ids.forEach(function (id, i) {
+        var ang = (i / ids.length) * Math.PI * 2 - Math.PI / 2 + 0.3;
+        var d = 30 + (i % 2) * 9;
+        var x = p.x + Math.cos(ang) * d;
+        var y = p.y + Math.sin(ang) * d;
+        out.push('<line class="graph-sat-edge" x1="' + p.x + '" y1="' + p.y +
+          '" x2="' + x + '" y2="' + y + '"/>');
+        out.push('<circle class="graph-sat kind-' + byId[id].kind + '" cx="' + x + '" cy="' + y +
+          '" r="2.6"><title>' + esc(byId[id].label) + '</title></circle>');
+      });
+    });
+    return out.join('');
+  }
+
   function nodeMarkup(n, x, y, cut, extra) {
     var short = cut && n.label.length > cut ? n.label.slice(0, cut - 1) + '…' : n.label;
     return '<g class="graph-node kind-' + n.kind + (selectedId === n.id ? ' selected' : '') + (extra ? ' ' + extra : '') +
