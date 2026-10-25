@@ -250,7 +250,11 @@
       '<button class="text-btn" data-go="graph">探索内容关系 <span aria-hidden="true">↗</span></button></div></div>' +
       '<div class="pulse-panel" aria-label="当前工作状态">' +
         '<div class="pulse-top"><span class="status-dot"></span><span>自动归档运行中</span><span class="pulse-date">' + esc(MEM.updated || '') + '</span></div>' +
-        '<div class="pulse-flow"><div><b>' + MEM.facts.length + '</b><span>对话已留档</span></div><i></i><div><b>' + MEM.beliefs.length + '</b><span>结论可回看</span></div><i></i><div><b>' + (ds.count || 0) + '</b><span>知识待复用</span></div></div>' +
+        '<div class="metrics">' +
+          '<div class="metric"><span class="m-label">对话已留档</span><b class="num">' + MEM.facts.length + '</b><span class="m-sub">条完整记录</span></div>' +
+          '<div class="metric"><span class="m-label">结论可回看</span><b class="num">' + MEM.beliefs.length + '</b><span class="m-sub">条稳定认知</span></div>' +
+          '<div class="metric"><span class="m-label">知识待复用</span><b class="num">' + (ds.count || 0) + '</b><span class="m-sub">条蒸馏结论</span></div>' +
+        '</div>' +
         '<div class="pulse-foot">' + (live ? live + ' 个对话仍在继续' : '当前没有进行中的对话') + '<span>' + (cloudReady() ? '云端写入已连接' : '只读浏览') + '</span></div>' +
       '</div></section>';
 
