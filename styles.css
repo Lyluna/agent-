@@ -1957,3 +1957,76 @@ tbody tr:hover td { background: color-mix(in srgb, var(--raised) 60%, transparen
   background: var(--active);
   box-shadow: inset 2px 0 0 var(--signal), inset 0 0 0 1px var(--border);
 }
+
+/* ============================================================
+   2026-10-25 项目详情抽屉：5W / 进度 / 验收 / 相关对话
+   ============================================================ */
+.drawer { position: fixed; inset: 0; z-index: 260; display: flex; justify-content: flex-end; }
+.drawer[hidden] { display: none; }
+.drawer-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(28, 22, 14, .40);
+  animation: fade-in .16s ease;
+}
+.drawer-panel {
+  position: relative;
+  width: min(620px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -20px 0 44px -26px rgba(40, 30, 15, .40);
+  padding: 26px 30px 44px;
+  animation: drawer-in .2s cubic-bezier(.2, .7, .3, 1);
+}
+.drawer-close {
+  position: absolute; top: 14px; right: 16px;
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer;
+}
+.drawer-close:hover { background: var(--raised); color: var(--text); }
+.drawer-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.drawer-folder { font-size: 12px; color: var(--faint); }
+.drawer-panel h2 { font-size: 22px; line-height: 1.35; letter-spacing: -.02em; margin: 0 0 16px; }
+
+.drawer-progress { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; font-size: 12px; color: var(--muted); }
+.drawer-progress .bar { flex: 1; height: 6px; border-radius: 999px; background: var(--raised); overflow: hidden; }
+.drawer-progress .bar i { display: block; height: 100%; background: var(--signal); border-radius: 999px; }
+
+.w5 { margin: 0; display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; }
+.w5-row { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 14px; padding: 13px 16px; background: var(--surface); }
+.w5-row dt { font-size: 12px; color: var(--faint); letter-spacing: .03em; }
+.w5-row dd { margin: 0; font-size: 13.5px; line-height: 1.68; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.w5-row dd .muted { color: var(--faint); font-style: normal; }
+
+.drawer-panel h3 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 22px 0 10px; letter-spacing: .03em; }
+.drawer-check { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.drawer-check li { display: flex; gap: 9px; font-size: 13px; color: var(--muted); line-height: 1.55; }
+.drawer-check li i { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--control); margin-top: 2px; flex: 0 0 auto; }
+.drawer-check li.done { color: var(--faint); text-decoration: line-through; }
+.drawer-check li.done i { background: var(--signal); border-color: var(--signal); position: relative; }
+.drawer-check li.done i::after {
+  content: ""; position: absolute; left: 4px; top: 1px;
+  width: 4px; height: 8px; border: solid #fff; border-width: 0 1.6px 1.6px 0;
+  transform: rotate(45deg);
+}
+.drawer-block { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.drawer-block b { font-size: 11px; letter-spacing: .05em; }
+.drawer-runs { display: grid; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.drawer-actions { display: flex; gap: 14px; align-items: center; margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--rule); }
+
+body.drawer-open { overflow: hidden; }
+.proj { cursor: pointer; }
+.proj:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+@keyframes drawer-in { from { transform: translateX(26px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+@media (max-width: 760px) {
+  .drawer-panel { width: 100%; padding: 22px 18px 34px; }
+  .w5-row { grid-template-columns: 1fr; gap: 4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-panel, .drawer-backdrop { animation: none; }
+}

@@ -1534,6 +1534,8 @@
     if (shot) {
       shotMode(shot[1] || 'overview');
       if (/openpalette/.test(query)) setTimeout(openPalette, 600);
+      var op = query.match(/[?&]openproject=([^&]+)/);
+      if (op) setTimeout(function () { openProject(decodeURIComponent(op[1])); }, 800);
     }
 
     // 支持 index.html#pw=密码 自动解锁（片段不会发送到服务器）
