@@ -255,7 +255,7 @@
           '<div class="metric"><span class="m-label">结论可回看</span><b class="num">' + MEM.beliefs.length + '</b><span class="m-sub">条稳定认知</span></div>' +
           '<div class="metric"><span class="m-label">知识待复用</span><b class="num">' + (ds.count || 0) + '</b><span class="m-sub">条蒸馏结论</span></div>' +
         '</div>' +
-        '<div class="pulse-foot">' + (live ? live + ' 个对话仍在继续' : '当前没有进行中的对话') + '<span>' + (cloudReady() ? '云端写入已连接' : '只读浏览') + '</span></div>' +
+        '<div class="pulse-foot">' + (live ? live + ' 个对话仍在继续' : '当前没有进行中的对话') + '<span>' + (canWrite ? '本地可写 · 能开终端' : cloudReady() ? '云端写入已连接' : '只读浏览') + '</span></div>' +
       '</div></section>';
 
     html += '<div class="overview-grid"><section class="overview-focus"><div class="section-heading"><span class="section-number">01</span><h2>接着处理</h2>' +
@@ -467,6 +467,7 @@
 
     html += '<div class="drawer-actions">' +
       '<button class="action-btn" data-copy-project>复制续接指令</button>' +
+      (canWrite ? '<button class="action-btn" data-terminal-project>在终端继续</button>' : '') +
       '<button class="text-btn" data-open-obsidian>在 Obsidian 打开</button>' +
       '</div>';
 
@@ -480,6 +481,23 @@
         copy.textContent = ok ? '已复制，粘到任意 Agent ✓' : '复制失败，请手动选中';
         setTimeout(function () { copy.textContent = '复制续接指令'; }, 2200);
       });
+    });
+    var term = $('drawerBody').querySelector('[data-terminal-project]');
+    if (term) term.addEventListener('click', function () {
+      term.textContent = '正在打开终端…';
+      fetch('/api/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: projectPrompt(p), file: p.path || '' })
+      }).then(function (r) { return r.json(); })
+        .then(function (res) {
+          term.textContent = res.ok ? '终端已打开 ✓' : ('失败：' + (res.error || '未知错误'));
+          setTimeout(function () { term.textContent = '在终端继续'; }, 2600);
+        })
+        .catch(function () {
+          term.textContent = '本地服务不可用';
+          setTimeout(function () { term.textContent = '在终端继续'; }, 2600);
+        });
     });
     var obs = $('drawerBody').querySelector('[data-open-obsidian]');
     if (obs) obs.addEventListener('click', function () {
