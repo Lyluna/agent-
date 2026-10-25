@@ -1792,3 +1792,79 @@ body { line-height: 1.7; letter-spacing: .005em; }
   .intent { grid-template-columns: 20px minmax(0, 1fr) auto; }
   .intent-prio { display: none; }
 }
+
+
+/* ============================================================
+   2026-10-25 参考项目落地（只借原则，不照抄）
+   TASTE：一个视觉重点、动效隔离、拒绝模板化卡片
+   Anthropic frontend-design：先 token 后页面、中文文案具体
+   UI/UX Pro Max：间距/圆角/对比度成体系
+   Make Interfaces Feel Better：嵌套圆角、光学对齐、触控热区、可中断动效
+   Vercel guidelines：焦点可见、减弱动效、移动端安全
+   neural-creator-dashboard：概览→模块→内容→详情的递进
+   ============================================================ */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+}
+
+/* 标题换行更稳，避免中文孤字 */
+.welcome h2, .section-heading h2, .proj h3, .latest-conversation strong { text-wrap: balance; }
+
+/* 键盘可达：统一焦点环 */
+.rail-item:focus-visible, .intent:focus-visible, .latest-conversation:focus-visible,
+.proj:focus-visible, .action-btn:focus-visible, .text-btn:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
+/* 结构用细线，层级用嵌套圆角（外 10 / 内 6） */
+.proj, .board-col, .work-stats { border-radius: var(--radius-card); }
+.proj footer, .intent-prio, .chip-status { border-radius: var(--radius-chip); }
+
+/* 任务文字限制行长，扫读不横跨整页 */
+.intent-text { max-width: 62ch; }
+
+/* 动效只给可交互元素，120ms、可中断；减弱动效时关闭 */
+@media (prefers-reduced-motion: no-preference) {
+  .intent, .rail-item, .proj, .latest-conversation, .action-btn {
+    transition: background-color .12s ease, border-color .12s ease, transform .12s ease;
+  }
+  .proj:hover { transform: translateY(-1px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intent, .rail-item, .proj, .latest-conversation, .action-btn { transition: none; }
+}
+
+/* 移动端热区 ≥44px，不横向溢出 */
+@media (max-width: 760px) {
+  .rail-item { height: 44px; }
+  .intent { min-height: 48px; }
+  .action-btn { min-height: 44px; padding: 12px 18px; }
+  body { overflow-x: hidden; }
+}
+
+/* 桌面内容不再无限拉宽 */
+@media (min-width: 1280px) { .view { max-width: 1180px; } }
+
+/* 首屏唯一重点：标题；正文行宽收住 */
+.welcome h2 { max-width: 16em; }
+
+/* 主按钮：从纯黑改成深墨绿，和暖底、绿色信号色是一套 */
+:root { --primary: #1d3a2b; --primary-ink: #fbf9f4; }
+:root[data-theme="dark"] { --primary: #e9f0e9; --primary-ink: #14120f; }
+.action-btn {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: var(--primary-ink);
+  border-radius: 10px;
+  font-weight: 550;
+}
+.action-btn:hover { opacity: .9; }
