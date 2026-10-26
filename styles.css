@@ -798,6 +798,44 @@ kbd {
   padding-top: 4px;
 }
 
+/* Stage B：任务状态标记（认领 / 阻塞）与对应按钮 */
+.state-tag {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 0 5px;
+  font-size: 10.5px;
+  line-height: 1.6;
+  border-radius: var(--radius-chip);
+  white-space: nowrap;
+  vertical-align: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.state-tag.started {
+  color: var(--signal);
+  background: var(--signal-soft);
+}
+.state-tag.blocked {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.state-btn {
+  margin-left: 4px;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  font-family: inherit;
+  line-height: 1.4;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.state-btn:hover { background: var(--raised); border-color: var(--control); color: var(--text); }
+.state-btn:disabled { opacity: .5; cursor: default; }
+
 /* ============================================================
    表格（技能 / 工具 / 蒸馏知识）
    ============================================================ */

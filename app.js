@@ -1419,6 +1419,8 @@
       .then(function (j) {
         if (j && j.writable) {
           canWrite = true;
+          if (j.sha) editSha = j.sha;   // 首次拿到待办指纹，后续写回带它做乐观锁
+
           // 事实视图的删除 / 合并按钮只在可写时出现，探测完要重绘一次
           if (state.view === 'intents') renderIntents();
           else if (state.view === 'facts') renderFacts();
