@@ -995,6 +995,28 @@
   function isPending(i) { return !isDone(i) && !isClosed(i); }
   function isToConfirm(i) { return isDone(i) && !isClosed(i); }
 
+  // 状态（pending / started / blocked / closed）与优先级正交，来自行尾标记
+  function taskState(i) {
+    var o = override[i.task];
+    if (o && o.state) return o.state;
+    return i.state || (i.closed ? 'closed' : (i.done ? 'started' : 'pending'));
+  }
+  function isStarted(i) { return taskState(i) === 'started'; }
+  function isBlocked(i) { return taskState(i) === 'blocked'; }
+
+  function stateTag(i) {
+    var st = taskState(i);
+    if (st === 'blocked') {
+      return '<span class="state-tag blocked" title="阻塞中">阻塞' +
+        (i.blocked_kind ? ' · ' + esc(i.blocked_kind) : '') + '</span>';
+    }
+    if (st === 'started' && !isClosed(i)) {
+      return '<span class="state-tag started" title="已认领">' +
+        (i.state_date ? esc(i.state_date.slice(5)) : '在做') + '</span>';
+    }
+    return '';
+  }
+
   function intentRow(t) {
     var label = { high: '高', mid: '中', low: '低' }[t.priority] || t.priority || '';
     var done = isDone(t);
@@ -1017,11 +1039,25 @@
       action = (canWrite || cloudReady())
         ? '<button class="close-btn" data-task="' + esc(t.task) + '" data-action="close">确认无后续</button>'
         : '<button class="close-btn copy" data-task="' + esc(t.task) + '" data-action="close">复制结案指令</button>';
+    } else if (canWrite || cloudReady()) {
+      // Stage B：认领 / 阻塞直接写回；线上只读时降级为复制指令（沿用同一套按钮）
+      var btns = [];
+      if (isBlocked(t)) {
+        btns.push('<button class="state-btn" data-task="' + esc(t.task) + '" data-action="unblock">解除阻塞</button>');
+      } else {
+        if (isStarted(t)) {
+          btns.push('<button class="state-btn" data-task="' + esc(t.task) + '" data-action="unclaim">撤回认领</button>');
+        } else {
+          btns.push('<button class="state-btn" data-task="' + esc(t.task) + '" data-action="claim">认领</button>');
+        }
+        btns.push('<button class="state-btn" data-task="' + esc(t.task) + '" data-action="block" data-kind="等外部">阻塞</button>');
+      }
+      action = btns.join('');
     }
 
     return '<div class="' + cls + '" data-task-row="' + esc(t.task) + '" tabindex="-1">' +
       box +
-      '<div class="intent-text">' + esc(t.task) + '</div>' +
+      '<div class="intent-text">' + esc(t.task) + ' ' + stateTag(t) + '</div>' +
       '<div class="intent-act">' + action + '</div>' +
       '<div class="intent-prio ' + esc(t.priority || '') + '">' + esc(label) + '</div>' +
     '</div>';
@@ -1189,16 +1225,75 @@
           e.stopPropagation();
           var task = el.dataset.task;
           var action = el.dataset.action;
+          var kind = el.dataset.kind || '';
           if (canWrite) {
-            writeStatus(task, action, el);
+            if (STATUS_ACTIONS.indexOf(action) >= 0) writeEdit(task, action, kind, el);
+            else writeStatus(task, action, el);
           } else if (cloudReady()) {
-            writeStatusCloud(task, action, el);
+            if (STATUS_ACTIONS.indexOf(action) >= 0) writeEditCloud(task, action, kind, el);
+            else writeStatusCloud(task, action, el);
           } else {
             copyInstruction(task, action, el);
           }
         });
       }
     );
+  }
+
+  // ---------- Stage B：认领 / 阻塞写回 ----------
+  var STATUS_ACTIONS = ['claim', 'unclaim', 'block', 'unblock'];
+  var editSha = '';   // 乐观锁：GET /api/status 给的待办文件指纹
+
+  function editOverride(task, action, kind) {
+    var o = override[task] || (override[task] = {});
+    if (action === 'claim') o.state = 'started';
+    else if (action === 'unclaim') o.state = 'pending';
+    else if (action === 'block') { o.state = 'blocked'; o.blocked_kind = kind || '等外部'; }
+    else if (action === 'unblock') o.state = 'started';
+  }
+
+  function writeEdit(task, action, kind, el) {
+    if (el.disabled) return;
+    el.disabled = true;
+    fetch('/api/edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task: task, action: action, kind: kind, sha: editSha })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) {
+        if (res.stale) { editSha = res.sha || ''; toast('待办刚被改过，已刷新，请再点一次', true); }
+        else toast(res.error || '写入失败', true);
+        throw new Error(res.error || '写入失败');
+      }
+      if (res.sha) editSha = res.sha;
+      editOverride(task, action, kind);
+      renderIntents();
+      renderWork();
+      renderRail();
+      renderHead();
+      if (state.view === 'overview') renderOverview();
+    }).catch(function (err) {
+      el.disabled = false;
+      if (err && err.message) toast(err.message, true);
+    });
+  }
+
+  function writeEditCloud(task, action, kind, el) {
+    if (el.disabled) return;
+    el.disabled = true;
+    cloudPost('/edit', { task: task, action: action, kind: kind, sha: editSha }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || '写入失败');
+      if (res.sha) editSha = res.sha;
+      editOverride(task, action, kind);
+      renderIntents();
+      renderWork();
+      renderRail();
+      renderHead();
+      if (state.view === 'overview') renderOverview();
+    }).catch(function (err) {
+      el.disabled = false;
+      toast('云端写入失败：' + err.message, true);
+    });
   }
 
   function writeStatus(task, action, el) {
