@@ -670,6 +670,38 @@
   var pickMode = false;      // 合并选择模式
   var picked = [];           // 选中的文件名
 
+  // P6-C 运行记录。默认收起：一份长会话可能有 20 批、上百步，
+  // 全展开会把「最近对话」列表撑成日志墙。展开后按批次分组，失败步标红。
+  function runsBlock(f) {
+    var runs = f.runs || [];
+    if (!runs.length) return '';
+    var total = runs.reduce(function (n, r) { return n + r.count; }, 0);
+    var fails = runs.reduce(function (n, r) { return n + (r.fail || 0); }, 0);
+    var steps = runs.reduce(function (n, r) { return n + r.steps.length; }, 0);
+    var cut = total - steps;
+    var head = '<summary><b>运行记录</b>' +
+      '<span class="runs-meta">' + runs.length + ' 批 · ' + total + ' 步' +
+      (fails ? ' · <i class="runs-fail">失败 ' + fails + '</i>' : '') +
+      (cut ? ' · 另有 ' + cut + ' 步未入门户' : '') + '</span></summary>';
+    var body = runs.map(function (r) {
+      var rows = r.steps.map(function (s) {
+        return '<li class="' + (s.ok ? 'ok' : 'bad') + '">' +
+          '<span class="step-mark">' + (s.ok ? '✓' : '✗') + '</span>' +
+          '<span class="step-tool">' + esc(s.tool) + '</span>' +
+          '<span class="step-brief">' + esc(s.brief || '（无摘要）') + '</span>' +
+          (s.stored ? '<span class="step-out">有输出</span>' : '') +
+          '</li>';
+      }).join('');
+      return '<div class="run-batch">' +
+        '<div class="run-head">' + esc(r.summary || '工具批') +
+        '<span>' + r.count + ' 步' + (r.fail ? ' · 失败 ' + r.fail : '') + '</span></div>' +
+        '<ul class="run-steps">' + rows + '</ul>' +
+        (r.truncated ? '<div class="run-cut">本批另有 ' + r.truncated + ' 步未入门户</div>' : '') +
+        '</div>';
+    }).join('');
+    return '<details class="runs-panel">' + head + '<div class="runs-body">' + body + '</div></details>';
+  }
+
   function factRow(f, i) {
     var live = f.status === '进行中';
     var canPick = pickMode && (canWrite || cloudReady());
@@ -694,6 +726,7 @@
         '<div class="fact-detail"><div class="detail-inner">' +
           '<div class="detail-bar"><span>完整对话存档</span>' +
           '<span>' + esc(f.tool) + '</span></div>' +
+          runsBlock(f) +
           // 正文按需渲染：32 条存档合计 38 万字符，一次性塞进 DOM 会让首屏卡住。
           // 用文件名做键：列表可能被工具筛选过，下标对不上 MEM.facts。
           '<div class="detail-body" data-file="' + esc(f.file) + '"></div>' +
