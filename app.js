@@ -25,7 +25,8 @@
     { id: 'beliefs',   label: '认知',   icon: 'bulb' },
     { id: 'intents',   label: '待办',   icon: 'check' },
     { id: 'knowledge', label: '知识', icon: 'drop' },
-    { id: 'graph', label: '关系', icon: 'graph' }
+    { id: 'graph', label: '关系', icon: 'graph' },
+    { id: 'requests', label: '要求', icon: 'check' }
   ];
 
   var ICONS = {
@@ -193,6 +194,8 @@
       finding = '<b class="num">' + ds.count + '</b> 条可复用结论 · ' +
         '<b class="num">' + sk.count + '</b> 个技能 · <b class="num">' +
         tl.count + '</b> 个工具。';
+    } else if (state.view === 'requests') {
+      renderRequests();
     } else if (state.view === 'graph') {
       finding = '从一条对话或知识出发，沿着真实关联找到它的来源。';
     }
@@ -1515,6 +1518,97 @@
     $('view-knowledge').innerHTML = html;
   }
 
+
+  // ---------- 要求：用户每次提的话，按时间排 ----------
+  var reqState = { q: '', kind: 'all' };
+
+  function renderRequests() {
+    var all = MEM.requests || [];
+    if (!all.length) {
+      $('view-requests').innerHTML =
+        '<p class="sec-note">还没有从对话存档里抽到要求。运行 <code>python -I 08-AI记忆/tools/extract_requests.py</code> 看一下。</p>';
+      return;
+    }
+
+    var q = reqState.q.trim().toLowerCase();
+    var rows = all.filter(function (r) {
+      if (reqState.kind !== 'all' && r.kind !== reqState.kind) return false;
+      if (!q) return true;
+      return (r.text + ' ' + r.file + ' ' + r.date).toLowerCase().indexOf(q) !== -1;
+    });
+
+    // 按天分组，天内的顺序由抽取脚本保证（真实时间优先）
+    var byDate = {};
+    var order = [];
+    rows.forEach(function (r) {
+      var d = r.date || '未标日期';
+      if (!byDate[d]) { byDate[d] = []; order.push(d); }
+      byDate[d].push(r);
+    });
+    order.sort().reverse();
+
+    var nReq = rows.filter(function (r) { return r.kind === 'request'; }).length;
+    var html = '<div class="sec-label"><h2>我提过的要求</h2>' +
+      '<span class="count">' + rows.length + ' 条（要求 ' + nReq + ' / 回执 ' +
+      (rows.length - nReq) + '）</span></div>' +
+      '<p class="sec-note">从对话存档里按时间抽出来的。标「回执」的是「继续」「要」「执行」这类应答，' +
+      '留着是为了看出节奏；后台通知、压缩摘要、系统注入的时间戳已经剔除。</p>' +
+      '<div class="req-bar">' +
+        '<input id="reqSearch" type="search" placeholder="搜要求内容、存档名、日期…" value="' +
+          esc(reqState.q) + '" aria-label="搜索要求">' +
+        '<div class="req-kinds" role="group" aria-label="按类型筛选">' +
+          ['all', 'request', 'ack'].map(function (k) {
+            var label = k === 'all' ? '全部' : (k === 'request' ? '只看要求' : '只看回执');
+            return '<button class="chip" data-kind="' + k + '" aria-pressed="' +
+              (reqState.kind === k) + '">' + label + '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+
+    if (!rows.length) {
+      html += '<p class="sec-note">没有匹配项。</p>';
+    }
+
+    order.forEach(function (d) {
+      var list = byDate[d];
+      html += '<div class="req-day"><div class="req-day-head">' +
+        '<b>' + esc(d) + '</b><span class="count">' + list.length + ' 条</span></div>';
+      list.forEach(function (r) {
+        var i = all.indexOf(r);
+        html += '<div class="req-row" data-idx="' + i + '">' +
+          '<span class="req-time num">' + esc(r.time || '--:--') + '</span>' +
+          '<span class="req-kind ' + (r.kind === 'ack' ? 'is-ack' : '') + '">' +
+            (r.kind === 'ack' ? '回执' : '要求') + '</span>' +
+          '<span class="req-text">' + esc(r.text) + '</span>' +
+          '<span class="req-src">' + esc(r.file) + '</span>' +
+          '</div>';
+      });
+      html += '</div>';
+    });
+
+    $('view-requests').innerHTML = html;
+
+    var input = $('reqSearch');
+    if (input) {
+      input.addEventListener('input', function () {
+        reqState.q = this.value;
+        renderRequests();
+        var again = $('reqSearch');
+        if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+      });
+    }
+    Array.prototype.forEach.call(
+      $('view-requests').querySelectorAll('.req-kinds .chip'),
+      function (btn) {
+        btn.addEventListener('click', function () {
+          reqState.kind = btn.dataset.kind;
+          renderRequests();
+        });
+      }
+    );
+  }
+
+
   // ---------- 命令面板 ----------
   function buildIndex() {
     var rows = [];
@@ -1562,6 +1656,13 @@
         });
       });
     }
+    (MEM.requests || []).forEach(function (r, i) {
+      rows.push({
+        kind: r.kind === 'request' ? '要求' : '回执', view: 'requests',
+        text: r.text, sub: r.date + ' ' + r.time + ' · ' + r.file,
+        target: { type: 'request', idx: i }
+      });
+    });
     return rows;
   }
 
@@ -1628,6 +1729,14 @@
         factRow.classList.add('open');
         factRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
         factRow.focus();
+      }
+    } else if (hit.target.type === 'request') {
+      setView('requests');
+      var reqRow = document.querySelector('#view-requests .req-row[data-idx="' + hit.target.idx + '"]');
+      if (reqRow) {
+        reqRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        reqRow.classList.add('located');
+        setTimeout(function () { reqRow.classList.remove('located'); }, 1600);
       }
     } else if (hit.target.type === 'intent') {
       setView('intents');
@@ -1748,6 +1857,7 @@
     MEM.claims = MEM.claims || [];
     MEM.sections = MEM.sections || {};
     MEM.relations = MEM.relations || { nodes: [], links: [] };
+    MEM.requests = MEM.requests || [];
   }
 
   function renderAll() {
