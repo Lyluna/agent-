@@ -1257,9 +1257,9 @@ td.mono { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
   max-width: min(420px, calc(100vw - 40px));
   padding: 10px 14px;
   border-radius: var(--radius-control);
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   background: var(--surface);
-  color: var(--ink);
+  color: var(--text);
   font-size: 12.5px;
   line-height: 1.5;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
@@ -2108,7 +2108,7 @@ body.drawer-open { overflow: hidden; }
   font-size: 13.5px;
   line-height: 1.75;
   white-space: pre-line;
-  color: var(--ink);
+  color: var(--text);
 }
 .digest-meta {
   display: block;
@@ -2133,7 +2133,7 @@ body.drawer-open { overflow: hidden; }
 /* ---------- P6-C 运行记录（对话展开里的工具执行明细） ---------- */
 .runs-panel {
   margin: 10px 0 4px;
-  border: 1px solid var(--line, rgba(0, 0, 0, .08));
+  border: 1px solid var(--rule);
   border-radius: 10px;
   background: rgba(0, 0, 0, .015);
 }
@@ -2166,7 +2166,7 @@ body.drawer-open { overflow: hidden; }
   font-size: 12px;
   color: var(--muted);
   padding-bottom: 4px;
-  border-bottom: 1px dashed var(--line, rgba(0, 0, 0, .08));
+  border-bottom: 1px dashed var(--rule);
 }
 .run-head span { margin-left: auto; font-variant-numeric: tabular-nums; }
 .run-steps { list-style: none; margin: 6px 0 0; padding: 0; }
@@ -2184,7 +2184,7 @@ body.drawer-open { overflow: hidden; }
   flex: none;
   min-width: 72px;
   font-weight: 600;
-  color: var(--fg, #222);
+  color: var(--text);
 }
 .step-brief {
   color: var(--muted);
@@ -2195,7 +2195,7 @@ body.drawer-open { overflow: hidden; }
   margin-left: auto;
   font-size: 11px;
   color: var(--faint);
-  border: 1px solid var(--line, rgba(0, 0, 0, .1));
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0 6px;
 }
@@ -2213,40 +2213,40 @@ body.drawer-open { overflow: hidden; }
 .req-bar input {
   flex: 1 1 260px; min-width: 0;
   padding: 9px 12px; font: inherit; font-size: 14px;
-  color: var(--ink); background: var(--surface);
-  border: 1px solid var(--line); border-radius: 9px;
+  color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 9px;
 }
 .req-bar input:focus-visible {
-  outline: 2px solid var(--accent); outline-offset: 1px;
+  outline: 2px solid var(--signal); outline-offset: 1px;
 }
 .req-kinds { display: flex; gap: 6px; }
 .req-kinds .chip {
   padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer;
   color: var(--muted); background: transparent;
-  border: 1px solid var(--line); border-radius: 999px;
+  border: 1px solid var(--border); border-radius: 999px;
 }
 .req-kinds .chip[aria-pressed="true"] {
-  color: var(--ink); background: var(--surface); border-color: var(--accent);
+  color: var(--text); background: var(--surface); border-color: var(--signal);
 }
 .req-day { margin: 0 0 22px; }
 .req-day-head {
   display: flex; align-items: baseline; gap: 10px;
   padding: 0 0 8px; margin: 0 0 8px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--rule);
 }
 .req-day-head b { font-size: 14px; letter-spacing: .02em; }
 .req-row {
   display: grid;
-  grid-template-columns: 52px 44px minmax(0, 1fr) 180px;
+  grid-template-columns: 52px 44px minmax(0, 1fr) 180px 54px;
   gap: 12px; align-items: baseline;
   padding: 7px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-bottom: 1px solid var(--rule);
 }
 .req-row:last-child { border-bottom: none; }
 .req-time { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .req-kind {
   font-size: 11px; text-align: center; padding: 2px 0;
-  color: var(--accent); border: 1px solid currentColor; border-radius: 5px;
+  color: var(--signal); border: 1px solid currentColor; border-radius: 5px;
   opacity: .85;
 }
 .req-kind.is-ack { color: var(--muted); opacity: .6; }
@@ -2255,10 +2255,116 @@ body.drawer-open { overflow: hidden; }
   font-size: 11.5px; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* 删除只藏不删，所以按钮刻意做得轻：hover 才显形，避免整页红点 */
+.req-del {
+  font: inherit; font-size: 12px; cursor: pointer;
+  padding: 2px 8px; border-radius: 6px;
+  color: var(--muted); background: transparent;
+  border: 1px solid transparent;
+  opacity: .32; transition: opacity .12s;
+}
+.req-row:hover .req-del,
+.req-del:focus-visible { opacity: 1; }
+.req-del:hover { opacity: 1; color: #c0392b; border-color: color-mix(in srgb, #c0392b 40%, transparent); }
+.req-del[data-act="restore"] { opacity: 1; color: var(--signal); }
+.req-del[data-act="restore"]:hover { border-color: var(--signal); }
+.req-row.picked {
+  background: color-mix(in srgb, var(--signal) 9%, transparent);
+  box-shadow: inset 2px 0 0 var(--signal);
+}
+.req-row:not(.picked) { cursor: pointer; }
+.req-hide-all { margin-left: auto; }
+.req-tip { margin-top: -12px; font-size: 12px; }
+/* ---------- 磁盘：只读看板，没有任何删除入口 ---------- */
+.disk-vols {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin: 16px 0 22px;
+}
+.disk-vol { display: block; }
+.disk-vol-head {
+  display: flex; align-items: baseline; gap: 10px;
+  margin-bottom: 6px; font-size: var(--fs-small);
+}
+.disk-vol-head b { font-size: var(--fs-body); }
+.disk-vol-head .num { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.disk-bar {
+  height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+}
+.disk-bar i { display: block; height: 100%; background: var(--control); }
+.disk-vol.is-low .disk-bar i { background: var(--warn); }
+.disk-warn { display: block; margin-top: 5px; font-size: 11.5px; color: var(--warn); }
+
+.sec-label.sec-sub { margin-top: 26px; }
+.sec-label.sec-sub h3 { font-size: var(--fs-body); font-weight: 600; }
+
+.disk-summary {
+  margin: 8px 0 16px;
+  padding: 10px 14px;
+  font-size: 13.5px; line-height: 1.7;
+  background: var(--raised);
+  border-left: 2px solid var(--control);
+  border-radius: var(--radius-control);
+  color: var(--text);
+}
+.disk-tiers {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 0 0 14px;
+}
+.disk-tier {
+  display: grid; gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.disk-tier-n { font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.disk-tier-size { font-size: var(--fs-small); color: var(--muted); font-variant-numeric: tabular-nums; }
+.disk-tier-label { font-size: var(--fs-small); font-weight: 600; margin-top: 4px; }
+.disk-tier-hint { font-size: 11.5px; color: var(--faint); line-height: 1.5; }
+.disk-tier.is-primary { border-left: 2px solid var(--signal); }
+.disk-tier.is-optional { border-left: 2px solid var(--warn); }
+.disk-tier.is-keep { border-left: 2px solid var(--control); }
+
+.disk-empty {
+  margin: 16px 0;
+  padding: 16px 18px;
+  font-size: 13.5px; line-height: 1.7;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-card);
+}
+.disk-actions {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 22px; padding-top: 18px;
+  border-top: 1px solid var(--rule);
+}
+.disk-hint { font-size: 11.5px; color: var(--faint); line-height: 1.5; flex: 1 1 240px; }
+
+.primary-btn {
+  padding: 7px 16px;
+  font: inherit; font-size: 13px;
+  color: var(--primary-ink); background: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+}
+.primary-btn:hover { opacity: .88; }
+.primary-btn:disabled { opacity: .45; cursor: default; }
+
+@media (max-width: 640px) {
+  .disk-tiers { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .disk-actions { gap: 8px; }
+}
+/**** 磁盘 END ****/
 .theme-dark .req-bar input { background: rgba(255, 255, 255, .04); }
 @media (max-width: 640px) {
-  .req-row { grid-template-columns: 44px 40px minmax(0, 1fr); }
+  .req-row { grid-template-columns: 44px 40px minmax(0, 1fr) 48px; }
   .req-src { display: none; }
   .req-bar { gap: 8px; }
+  .req-del { opacity: 1; }
 }
 

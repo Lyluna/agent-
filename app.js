@@ -26,10 +26,12 @@
     { id: 'intents',   label: '待办',   icon: 'check' },
     { id: 'knowledge', label: '知识', icon: 'drop' },
     { id: 'graph', label: '关系', icon: 'graph' },
-    { id: 'requests', label: '要求', icon: 'check' }
+    { id: 'requests', label: '要求', icon: 'check' },
+    { id: 'disk', label: '磁盘', icon: 'disk' }
   ];
 
   var ICONS = {
+    disk:  '<rect x="3" y="5" width="18" height="6" rx="2"/><rect x="3" y="13" width="18" height="6" rx="2"/><path d="M7 8h.01M7 16h.01"/>',
     graph: '<circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="17" r="2.5"/><circle cx="19" cy="17" r="2.5"/><path d="m10.5 7-4 7.5m7-7.5 4 7.5M7.5 17h9"/>',
     grid:  '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>',
     board: '<path d="m12 3 8 4.5-8 4.5-8-4.5L12 3z"/><path d="m4 12 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/>',
@@ -196,6 +198,8 @@
         tl.count + '</b> 个工具。';
     } else if (state.view === 'requests') {
       renderRequests();
+    } else if (state.view === 'disk') {
+      renderDisk();
     } else if (state.view === 'graph') {
       finding = '从一条对话或知识出发，沿着真实关联找到它的来源。';
     }
@@ -1520,11 +1524,77 @@
 
 
   // ---------- 要求：用户每次提的话，按时间排 ----------
-  var reqState = { q: '', kind: 'all' };
+  var reqState = { q: '', kind: 'all', hidden: null, hiddenErr: '' };
+
+  // 删除的语义：**只记隐藏清单，对话存档一个字都不动**。
+  // 所以这里不需要确认弹窗——错了点「已隐藏」再恢复就行，原文一直在存档里。
+  function reqPost(path, keys) {
+    return fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: keys })
+    }).then(function (r) { return r.json(); });
+  }
+
+  function hideRequests(keys, el) {
+    if (el) { el.disabled = true; el.textContent = '…'; }
+    reqPost('/api/requests/delete', keys).then(function (res) {
+      if (!res.ok) throw new Error(res.error || '删除失败');
+      var gone = {};
+      keys.forEach(function (k) { gone[k] = true; });
+      MEM.requests = (MEM.requests || []).filter(function (r) { return !gone[r.key]; });
+      reqState.hidden = null;          // 下次进「已隐藏」时重新拉
+      renderRequests();
+      renderRail();
+      toast('已隐藏 ' + keys.length + ' 条（存档未改动，可在「已隐藏」里恢复）');
+    }).catch(function (err) {
+      if (el) { el.disabled = false; el.textContent = '删除'; }
+      toast('删除失败：' + err.message, true);
+    });
+  }
+
+  function restoreRequests(keys, el) {
+    if (el) { el.disabled = true; el.textContent = '…'; }
+    reqPost('/api/requests/restore', keys).then(function (res) {
+      if (!res.ok) throw new Error(res.error || '恢复失败');
+      var back = {};
+      keys.forEach(function (k) { back[k] = true; });
+      reqState.hidden = (reqState.hidden || []).filter(function (r) { return !back[r.key]; });
+      // 内存里删过的那条已经没了，插不回来——重拉一份完整列表，比在前端拼字段可靠
+      return fetch('/api/requests/list').then(function (r) { return r.json(); })
+        .then(function (list) {
+          if (list.ok) MEM.requests = list.items;
+          renderRequests();
+          toast('已恢复 ' + keys.length + ' 条');
+        });
+    }).catch(function (err) {
+      if (el) { el.disabled = false; el.textContent = '恢复'; }
+      toast('恢复失败：' + err.message, true);
+    });
+  }
+
+  function loadHidden(done) {
+    fetch('/api/requests/hidden').then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || '读取失败');
+      reqState.hidden = res.items || [];
+      reqState.hiddenErr = '';
+      done();
+    }).catch(function (err) {
+      reqState.hidden = [];
+      reqState.hiddenErr = err.message;
+      done();
+    });
+  }
 
   function renderRequests() {
     var all = MEM.requests || [];
-    if (!all.length) {
+    var local = isLocalServer();
+    if (reqState.kind === 'hidden' && reqState.hidden === null && local) {
+      $('view-requests').innerHTML = '<p class="sec-note">读取隐藏清单…</p>';
+      loadHidden(renderRequests);
+      return;
+    }
+    if (!all.length && reqState.kind !== 'hidden') {
       $('view-requests').innerHTML =
         '<p class="sec-note">还没有从对话存档里抽到要求。运行 <code>python -I 08-AI记忆/tools/extract_requests.py</code> 看一下。</p>';
       return;
@@ -1532,10 +1602,17 @@
 
     var q = reqState.q.trim().toLowerCase();
     var rows = all.filter(function (r) {
-      if (reqState.kind !== 'all' && r.kind !== reqState.kind) return false;
+      if (reqState.kind !== 'all' && reqState.kind !== 'hidden' && r.kind !== reqState.kind) return false;
       if (!q) return true;
       return (r.text + ' ' + r.file + ' ' + r.date).toLowerCase().indexOf(q) !== -1;
     });
+    if (reqState.kind === 'hidden') {
+      // 已隐藏列表来自清单文件，不受正文筛选影响；搜索只筛当前展示的这一栏
+      rows = (reqState.hidden || []).filter(function (r) {
+        if (!q) return true;
+        return (r.text + ' ' + r.file + ' ' + r.date).toLowerCase().indexOf(q) !== -1;
+      });
+    }
 
     // 按天分组，天内的顺序由抽取脚本保证（真实时间优先）
     var byDate = {};
@@ -1548,25 +1625,36 @@
     order.sort().reverse();
 
     var nReq = rows.filter(function (r) { return r.kind === 'request'; }).length;
-    var html = '<div class="sec-label"><h2>我提过的要求</h2>' +
-      '<span class="count">' + rows.length + ' 条（要求 ' + nReq + ' / 回执 ' +
-      (rows.length - nReq) + '）</span></div>' +
-      '<p class="sec-note">从对话存档里按时间抽出来的。标「回执」的是「继续」「要」「执行」这类应答，' +
-      '留着是为了看出节奏；后台通知、压缩摘要、系统注入的时间戳已经剔除。</p>' +
+    var isHiddenView = reqState.kind === 'hidden';
+    var html = '<div class="sec-label"><h2>' + (isHiddenView ? '已隐藏的要求' : '我提过的要求') + '</h2>' +
+      '<span class="count">' + rows.length + ' 条' +
+        (isHiddenView ? '' : '（要求 ' + nReq + ' / 回执 ' + (rows.length - nReq) + '）') +
+      '</span></div>' +
+      '<p class="sec-note">' + (isHiddenView
+        ? '这些只是从列表里藏起来了，<b>对话存档一个字都没动</b>，原文随时能翻。点「恢复」就回到列表。'
+        : '从对话存档里按时间抽出来的。标「回执」的是「继续」「要」「执行」这类应答，' +
+          '留着是为了看出节奏；后台通知、压缩摘要、系统注入的时间戳已经剔除。') +
+      '</p>' +
       '<div class="req-bar">' +
         '<input id="reqSearch" type="search" placeholder="搜要求内容、存档名、日期…" value="' +
           esc(reqState.q) + '" aria-label="搜索要求">' +
         '<div class="req-kinds" role="group" aria-label="按类型筛选">' +
-          ['all', 'request', 'ack'].map(function (k) {
-            var label = k === 'all' ? '全部' : (k === 'request' ? '只看要求' : '只看回执');
+          ['all', 'request', 'ack', 'hidden'].map(function (k) {
+            var label = { all: '全部', request: '只看要求', ack: '只看回执', hidden: '已隐藏' }[k];
             return '<button class="chip" data-kind="' + k + '" aria-pressed="' +
               (reqState.kind === k) + '">' + label + '</button>';
           }).join('') +
         '</div>' +
+        (local && !isHiddenView
+          ? '<button class="chip req-hide-all" id="reqHidePicked">删除选中的</button>'
+          : '') +
       '</div>';
 
     if (!rows.length) {
-      html += '<p class="sec-note">没有匹配项。</p>';
+      html += '<p class="sec-note">' +
+        (isHiddenView ? (reqState.hiddenErr ? '读取隐藏清单失败：' + esc(reqState.hiddenErr)
+                                            : '隐藏清单是空的。')
+                      : '没有匹配项。') + '</p>';
     }
 
     order.forEach(function (d) {
@@ -1575,16 +1663,28 @@
         '<b>' + esc(d) + '</b><span class="count">' + list.length + ' 条</span></div>';
       list.forEach(function (r) {
         var i = all.indexOf(r);
-        html += '<div class="req-row" data-idx="' + i + '">' +
+        var btn = local
+          ? (isHiddenView
+              ? '<button class="req-del" data-key="' + esc(r.key || '') + '" data-act="restore">恢复</button>'
+              : '<button class="req-del" data-key="' + esc(r.key || '') + '" data-act="hide" ' +
+                'aria-label="从列表隐藏这条">删除</button>')
+          : '';
+        html += '<div class="req-row" data-idx="' + i + '" data-key="' + esc(r.key || '') + '">' +
           '<span class="req-time num">' + esc(r.time || '--:--') + '</span>' +
           '<span class="req-kind ' + (r.kind === 'ack' ? 'is-ack' : '') + '">' +
             (r.kind === 'ack' ? '回执' : '要求') + '</span>' +
           '<span class="req-text">' + esc(r.text) + '</span>' +
           '<span class="req-src">' + esc(r.file) + '</span>' +
+          btn +
           '</div>';
       });
       html += '</div>';
     });
+
+    if (local && !isHiddenView) {
+      html += '<p class="sec-note req-tip">删除＝只从列表藏起来，存档不动，可在「已隐藏」里恢复。' +
+        '线上版没有删除入口——它读的是静态快照。</p>';
+    }
 
     $('view-requests').innerHTML = html;
 
@@ -1598,14 +1698,217 @@
       });
     }
     Array.prototype.forEach.call(
+      $('view-requests').querySelectorAll('.req-del'),
+      function (btn) {
+        btn.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          var key = btn.dataset.key;
+          if (!key) return;
+          if (btn.dataset.act === 'restore') restoreRequests([key], btn);
+          else hideRequests([key], btn);
+        });
+      }
+    );
+    // 多选：点行身选中，不点行就不会误删；单条删除走右边的按钮
+    Array.prototype.forEach.call(
+      $('view-requests').querySelectorAll('.req-row'),
+      function (row) {
+        row.addEventListener('click', function () {
+          if (!local || isHiddenView) return;
+          row.classList.toggle('picked');
+        });
+      }
+    );
+    var bulk = $('reqHidePicked');
+    if (bulk) {
+      bulk.addEventListener('click', function () {
+        var keys = Array.prototype.map.call(
+          $('view-requests').querySelectorAll('.req-row.picked'),
+          function (row) { return row.dataset.key; }
+        ).filter(Boolean);
+        if (!keys.length) return toast('先点一下要删的行', true);
+        bulk.textContent = '…';
+        hideRequests(keys, bulk);
+      });
+    }
+    Array.prototype.forEach.call(
       $('view-requests').querySelectorAll('.req-kinds .chip'),
       function (btn) {
         btn.addEventListener('click', function () {
           reqState.kind = btn.dataset.kind;
+          if (btn.dataset.kind === 'hidden' && reqState.hidden === null) reqState.hidden = null;
           renderRequests();
         });
       }
     );
+  }
+
+
+  // ---------- 磁盘 ----------
+  // 门户只展示 purrge 的扫描结果，**没有任何删除入口**。
+  // 清理必须去 purrge 自己的审查页勾选确认——这里是「看板」，不是「操作台」。
+  var diskState = { data: null, loading: false, err: '', polling: 0 };
+
+  function diskPost(path) {
+    return fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    }).then(function (r) { return r.json(); });
+  }
+
+  function loadDisk(done) {
+    diskState.loading = true;
+    fetch('/api/disk').then(function (r) { return r.json(); }).then(function (res) {
+      diskState.data = res;
+      diskState.loading = false;
+      diskState.err = res.ok === false ? (res.error || '读取失败') : '';
+      if (done) done();
+    }).catch(function (err) {
+      diskState.loading = false;
+      diskState.err = err.message;
+      if (done) done();
+    });
+  }
+
+  function diskStartScan(btn) {
+    btn.disabled = true;
+    var label = btn.textContent;
+    btn.textContent = '已开始…';
+    diskPost('/api/disk/scan').then(function (res) {
+      if (!res.ok) throw new Error(res.error || '启动失败');
+      toast(res.message || '已开始扫描');
+      // 扫描 1～2 分钟：轮询到新 run 出现为止，最多盯 4 分钟
+      var before = (diskState.data && diskState.data.run || {}).dir || '';
+      var tries = 0;
+      clearInterval(diskState.polling);
+      diskState.polling = setInterval(function () {
+        tries += 1;
+        loadDisk(function () {
+          var now = (diskState.data && diskState.data.run || {}).dir || '';
+          if ((now && now !== before) || tries > 48) {
+            clearInterval(diskState.polling);
+            btn.disabled = false;
+            btn.textContent = label;
+            renderDisk();
+            if (now && now !== before) toast('扫描完成，结果已更新');
+          }
+        });
+      }, 5000);
+    }).catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = label;
+      toast('启动扫描失败：' + err.message, true);
+    });
+  }
+
+  function diskOpenReview(btn) {
+    btn.disabled = true;
+    diskPost('/api/disk/review').then(function (res) {
+      if (!res.ok) throw new Error(res.error || '打开失败');
+      toast(res.message || '已打开审查页');
+    }).catch(function (err) {
+      toast('打开审查页失败：' + err.message, true);
+    }).then(function () { btn.disabled = false; });
+  }
+
+  function renderDisk() {
+    var box = $('view-disk');
+    if (!box) return;
+
+    // 线上静态站（GitHub Pages）没有本地服务，也就读不到本机磁盘
+    if (!isLocalServer()) {
+      box.innerHTML = '<div class="sec-label"><h2>磁盘</h2></div>' +
+        '<p class="sec-note">磁盘板块只在<strong>本地</strong>可用——它要读这台机器的剩余空间和清理工具的运行记录。' +
+        '线上版读不到，就不显示数字，免得看的是别人机器的旧快照。</p>';
+      return;
+    }
+
+    if (!diskState.data && !diskState.loading && !diskState.err) {
+      box.innerHTML = '<p class="sec-note">读取磁盘状态…</p>';
+      loadDisk(renderDisk);
+      return;
+    }
+
+    var d = diskState.data || {};
+    var run = d.run;
+    var html = '<div class="sec-label"><h2>磁盘</h2>' +
+      '<span class="count">' + (d.installed ? 'purrge 已接入' : '未接入') + '</span></div>' +
+      '<p class="sec-note">数据来自 purrge 最近一次扫描。<strong>这个板块不删任何东西</strong>——' +
+      '清理要由你在 purrge 的审查页面里逐项勾选确认。</p>';
+
+    if (!d.installed) {
+      html += '<div class="disk-empty">还没检测到 purrge（磁盘清理助手）。' +
+        '装好以后这里的数字会自动出现。<br>' +
+        '<span class="disk-hint">动手前它会先保护记忆库：MyVault 已经在 protect 名单里。</span></div>';
+      box.innerHTML = html;
+      return;
+    }
+
+    // 1. 空间条
+    var vols = d.volumes || [];
+    if (vols.length) {
+      html += '<div class="disk-vols">';
+      vols.forEach(function (v) {
+        var used = v.total - v.free;
+        var pct = v.total ? Math.round(used / v.total * 100) : 0;
+        var low = d.thresholdGB && v.free < d.thresholdGB * 1024 * 1024 * 1024;
+        html += '<div class="disk-vol' + (low ? ' is-low' : '') + '">' +
+          '<div class="disk-vol-head"><b>' + esc(v.mount) + '</b>' +
+            '<span class="num">剩 ' + esc(v.freeHuman) + ' / 共 ' + esc(v.totalHuman) + '</span></div>' +
+          '<div class="disk-bar" role="img" aria-label="' + esc(v.mount) + ' 已用 ' + pct + '%">' +
+            '<i style="width:' + pct + '%"></i></div>' +
+          (low ? '<span class="disk-warn">低于阈值 ' + esc(String(d.thresholdGB)) + ' GB</span>' : '') +
+          '</div>';
+      });
+      html += '</div>';
+    }
+
+    // 2. 最近一次扫描
+    if (!run) {
+      html += '<div class="disk-empty">' + esc(d.error || '还没扫描过。') +
+        '点下面的按钮扫描一次。</div>';
+    } else {
+      html += '<div class="sec-label sec-sub"><h3>最近一次扫描</h3>' +
+        '<span class="count">' + esc(run.scannedAt || '') + ' · ' +
+        esc(run.engine || '规则判断') + '</span></div>';
+      if (run.summary) {
+        html += '<p class="disk-summary">' + esc(run.summary) + '</p>';
+      }
+      var tiers = [
+        ['primary', '可清理', '较安全，清掉基本无痛'],
+        ['optional', '需确认', '得自己看一眼再决定'],
+        ['keep', '建议留', '别动']
+      ];
+      html += '<div class="disk-tiers">';
+      tiers.forEach(function (t) {
+        var k = t[0];
+        var n = (run.counts || {})[k] || 0;
+        var sz = (run.sizeHuman || {})[k] || '0 B';
+        html += '<div class="disk-tier is-' + k + '">' +
+          '<span class="disk-tier-n num">' + n + '</span>' +
+          '<span class="disk-tier-size num">' + esc(sz) + '</span>' +
+          '<span class="disk-tier-label">' + t[1] + '</span>' +
+          '<span class="disk-tier-hint">' + t[2] + '</span>' +
+          '</div>';
+      });
+      html += '</div>';
+      html += '<p class="sec-note disk-hint">共 ' + run.total + ' 项候选。' +
+        '数字与 <code>~/.purrge/runs/' + esc(run.dir) + '/review.json</code> 一致。</p>';
+    }
+
+    // 3. 两个按钮，仅本地
+    html += '<div class="disk-actions">' +
+      '<button class="primary-btn" id="diskScan">立即扫描</button>' +
+      '<button class="ghost-btn" id="diskReview"' + (run ? '' : ' disabled') + '>打开审查页</button>' +
+      '<span class="disk-hint">审查页由 purrge 自己打开，勾选后才清理；门户这边没有任何删除按钮。</span>' +
+      '</div>';
+
+    box.innerHTML = html;
+    var s = $('diskScan');
+    var r = $('diskReview');
+    if (s) s.addEventListener('click', function () { diskStartScan(s); });
+    if (r && !r.disabled) r.addEventListener('click', function () { diskOpenReview(r); });
   }
 
 
