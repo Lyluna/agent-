@@ -2367,4 +2367,74 @@ body.drawer-open { overflow: hidden; }
   .req-bar { gap: 8px; }
   .req-del { opacity: 1; }
 }
+/* ---------- 使用（每次会话用了什么） ---------- */
+.usage-stats {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin: 0 0 16px;
+}
+.usage-stat {
+  display: grid; gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.usage-n { font-size: 24px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.usage-k { font-size: var(--fs-small); font-weight: 600; }
+.usage-h { font-size: 11.5px; color: var(--faint); line-height: 1.5; }
 
+.usage-bars { display: grid; gap: 6px; margin: 0 0 12px; }
+.usage-bar-row {
+  display: grid; align-items: center; gap: 10px;
+  grid-template-columns: 120px 1fr 64px;
+}
+.usage-bar-k { font-size: var(--fs-small); color: var(--muted); }
+.usage-track {
+  display: block; height: 8px;
+  background: var(--control);
+  border-radius: var(--radius-chip);
+  overflow: hidden;
+}
+.usage-fill {
+  display: block; height: 100%;
+  background: var(--series-1);
+  border-radius: inherit;
+}
+.usage-bar-v {
+  text-align: right; font-size: var(--fs-small);
+  color: var(--muted); font-variant-numeric: tabular-nums;
+}
+
+.usage-skills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.usage-skill {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+  font-size: var(--fs-small);
+}
+.usage-skill-when { color: var(--faint); font-size: 11.5px; }
+
+.usage-sessions { display: grid; gap: 1px; background: var(--rule); border-radius: var(--radius-card); overflow: hidden; }
+.usage-row {
+  display: grid; align-items: baseline; gap: 10px;
+  grid-template-columns: 118px minmax(0, 1fr) 108px 150px 180px;
+  padding: 9px 12px;
+  background: var(--surface);
+  font-size: var(--fs-small);
+}
+.usage-row.is-bare { opacity: .72; }
+.usage-when { color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.usage-topic { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.usage-tool { color: var(--muted); }
+.usage-fail { color: var(--warn); }
+.usage-none { color: var(--faint); }
+.usage-skills-cell { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .usage-row { grid-template-columns: 100px minmax(0, 1fr) 110px; row-gap: 2px; }
+  .usage-tool, .usage-skills-cell { display: none; }
+  .usage-bar-row { grid-template-columns: 92px 1fr 52px; }
+}

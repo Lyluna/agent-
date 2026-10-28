@@ -27,6 +27,7 @@
     { id: 'knowledge', label: '知识', icon: 'drop' },
     { id: 'graph', label: '关系', icon: 'graph' },
     { id: 'requests', label: '要求', icon: 'check' },
+    { id: 'usage', label: '使用', icon: 'pulse' },
     { id: 'disk', label: '磁盘', icon: 'disk' }
   ];
 
@@ -39,7 +40,8 @@
     bulb:  '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/>',
     check: '<path d="M4.5 12.5l5 5 10-11"/>',
     tool:  '<path d="M14.5 6.5a4 4 0 0 0 5 5L10 21l-4-4 9.5-9.5z"/><path d="M6 6l3 3"/>',
-    drop:  '<path d="M12 3.5s6 6.2 6 10a6 6 0 0 1-12 0c0-3.8 6-10 6-10z"/>'
+    drop:  '<path d="M12 3.5s6 6.2 6 10a6 6 0 0 1-12 0c0-3.8 6-10 6-10z"/>',
+    pulse: '<path d="M3 12h3.5l2-5 3 10 2.5-5H21"/>'
   };
 
   // ---------- 工具函数 ----------
@@ -117,6 +119,7 @@
       knowledge: (MEM.sections.distilled ? MEM.sections.distilled.count : 0) +
                  (MEM.sections.skills ? MEM.sections.skills.count : 0) +
                  (MEM.sections.tools ? MEM.sections.tools.count : 0),
+      usage: (MEM.usage && MEM.usage.coverage ? MEM.usage.coverage.sessions : 0) || null,
       graph: null
     };
 
@@ -198,6 +201,15 @@
         tl.count + '</b> 个工具。';
     } else if (state.view === 'requests') {
       renderRequests();
+    } else if (state.view === 'usage') {
+      var uc = (MEM.usage && MEM.usage.coverage) || {};
+      finding = uc.calls
+        ? '<b class="num">' + uc.sessions + '</b> 次会话里，' +
+          '<b class="num">' + uc.detailed + '</b> 次有工具明细，共 ' +
+          '<b class="num">' + uc.calls + '</b> 次调用、' +
+          '<b class="num">' + uc.fails + '</b> 次失败。'
+        : '还没有使用数据。';
+      renderUsage();
     } else if (state.view === 'disk') {
       renderDisk();
     } else if (state.view === 'graph') {
@@ -1810,6 +1822,106 @@
     }).catch(function (err) {
       toast('打开审查页失败：' + err.message, true);
     }).then(function () { btn.disabled = false; });
+  }
+
+  // ---------- 使用（每次会话用了什么） ----------
+  function usageNum(n) {
+    return String(n == null ? 0 : n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function renderUsage() {
+    var box = $('view-usage');
+    if (!box) return;
+
+    var u = MEM.usage || {};
+    var cov = u.coverage || {};
+    var rows = u.sessions || [];
+    if (!rows.length) {
+      box.innerHTML = '<div class="sec-label"><h2>使用</h2></div>' +
+        '<p class="sec-note">还没有使用数据。运行 <code>python -I 08-AI记忆/tools/usage_index.py</code> 重建后再生成门户。</p>';
+      return;
+    }
+
+    var tools = u.tools || [];
+    var skills = u.skills || [];
+    var maxTool = tools.length ? tools[0].count : 0;
+
+    // 覆盖范围先说清楚：只有 Claude Code 的存档写工具明细，
+    // 不说这句话，读者会以为其余会话一次工具都没调过。
+    var html = '<div class="sec-label"><h2>每次会话用了什么</h2>' +
+      '<span class="count">' + rows.length + ' 次会话</span></div>' +
+      '<p class="sec-note">从对话存档的「🔧 工具执行」条目里抽出来的。' +
+      '<b>这不是「总共只干了这么多活」</b>，是「有据可查的干了这么多活」——' +
+      '只有 Claude Code 归档时写工具明细，另外 ' + (cov.sessions - cov.detailed) +
+      ' 份存档只有正文，只出现在下面的会话表里。</p>';
+
+    html += '<div class="usage-stats">' +
+      '<div class="usage-stat"><span class="usage-n">' + cov.detailed + ' / ' + cov.sessions + '</span>' +
+        '<span class="usage-k">带明细会话</span>' +
+        '<span class="usage-h">其余只有正文，没有工具记录</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + usageNum(cov.calls) + '</span>' +
+        '<span class="usage-k">成功调用</span>' +
+        '<span class="usage-h">存档里带 ✓ 的条目</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + usageNum(cov.fails) + '</span>' +
+        '<span class="usage-k">失败</span>' +
+        '<span class="usage-h">失败率 ' + cov.rate + '%</span></div>' +
+      '</div>';
+
+    if (tools.length) {
+      html += '<div class="sec-label"><h3>工具分布</h3></div>' +
+        '<div class="usage-bars">' +
+        tools.map(function (t) {
+          var pct = maxTool ? Math.round(t.count / maxTool * 100) : 0;
+          return '<div class="usage-bar-row">' +
+            '<span class="usage-bar-k"><code>' + esc(t.name) + '</code></span>' +
+            '<span class="usage-track"><span class="usage-fill" style="width:' + pct + '%"></span></span>' +
+            '<span class="usage-bar-v num">' + usageNum(t.count) + '</span>' +
+            '</div>';
+        }).join('') + '</div>' +
+        '<p class="sec-note">Bash 次数高不等于干得多：查目录、读状态、跑测试都算一次。' +
+        '先定位再读，别用 Bash 满仓库 <code>cat</code>。</p>';
+    }
+
+    if (skills.length) {
+      html += '<div class="sec-label"><h3>技能使用</h3>' +
+        '<span class="count">' + skills.length + ' 个</span></div>' +
+        '<div class="usage-skills">' +
+        skills.map(function (s) {
+          return '<span class="usage-skill"><code>' + esc(s.name) + '</code>' +
+            '<span class="num">×' + s.count + '</span>' +
+            (s.last ? '<span class="usage-skill-when">' + esc(s.last) + '</span>' : '') +
+            '</span>';
+        }).join('') + '</div>' +
+        '<p class="sec-note">把这张表和技能库索引对一遍：<b>登记了却从没出现在这里的技能</b>，' +
+        '下次接同类任务先想到它，或者在索引里标一句「为什么一直用不上」。</p>';
+    }
+
+    // 会话表：有明细的排前面，按时间倒序
+    html += '<div class="sec-label"><h3>逐次会话</h3>' +
+      '<span class="count">按时间倒序</span></div>' +
+      '<div class="usage-sessions">' +
+      rows.map(function (r) {
+        var sk = (r.skills || []).length
+          ? (r.skills || []).map(function (s) { return '<code>' + esc(s) + '</code>'; }).join(' ')
+          : '<span class="usage-none">—</span>';
+        var stat = r.detailed
+          ? '<span class="num">' + usageNum(r.calls) + '</span> 次' +
+            (r.fails ? ' · <span class="usage-fail">' + r.fails + ' 失败</span>' : '')
+          : '<span class="usage-none">无工具明细</span>';
+        return '<div class="usage-row' + (r.detailed ? '' : ' is-bare') + '">' +
+          '<span class="usage-when">' + esc(r.date) + ' ' + esc(r.clock) + '</span>' +
+          '<span class="usage-topic">' + esc(r.topic || r.file) + '</span>' +
+          '<span class="usage-tool">' + esc(r.tool || '—') + '</span>' +
+          '<span class="usage-stat-cell">' + stat + '</span>' +
+          '<span class="usage-skills-cell">' + sk + '</span>' +
+          '</div>';
+      }).join('') +
+      '</div>' +
+      '<p class="sec-note">完整版（含改过哪些文件、读得最多的文件、反复试错的会话）见 ' +
+      '<code>08-AI记忆/使用索引.md</code>。这里只做浏览，不做判断——' +
+      '「这次为什么绕」要人写。</p>';
+
+    box.innerHTML = html;
   }
 
   function renderDisk() {
