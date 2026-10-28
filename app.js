@@ -262,7 +262,7 @@
     var latest = MEM.facts[0] || {};
     var ds = MEM.sections.distilled || { count: 0 };
     var html = '<section class="welcome">' +
-      '<div class="welcome-copy"><span class="eyebrow">个人工作系统 · 记忆与知识</span>' +
+      '<div class="welcome-copy">' +
       '<h2>继续上次的思考，<br>找到这次能用的答案。</h2>' +
       '<p>' + esc(p.name || '') + '，这里是各 Agent 共用的记忆与知识工作台。对话有来处，结论能复用，下一步有落点。</p>' +
       '<div class="welcome-actions"><button class="action-btn" data-go="facts">浏览最近对话</button>' +
