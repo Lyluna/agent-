@@ -18,6 +18,7 @@
     agent: 'all',
     category: 'all',
     theme: 'light',
+    railCollapsed: false,
     paletteIndex: 0,
     paletteHits: []
   };
@@ -124,6 +125,42 @@
     applyTheme(saved);
   }
 
+  // ---------- 侧边栏收起 ----------
+  // 只换 grid 的列宽，不搬内容。手机端 .rail-brand 本来就隐藏，
+  // 所以按钮在窄屏自然不出现（横向导航没有「收起」的意义）。
+  function syncRailTitles() {
+    var labels = {};
+    VIEWS.forEach(function (v) { labels[v.id] = v.label; });
+    Array.prototype.forEach.call(document.querySelectorAll('.rail-item'), function (el) {
+      // 收起后文字被视觉隐藏，靠 title 补回悬停提示
+      el.title = state.railCollapsed ? (labels[el.dataset.view] || '') : '';
+    });
+  }
+
+  function applyRail(collapsed) {
+    state.railCollapsed = collapsed;
+    var app = $('app');
+    if (app) app.classList.toggle('rail-collapsed', collapsed);
+    var btn = $('railToggle');
+    if (btn) {
+      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      btn.setAttribute('aria-label', collapsed ? '展开侧边栏' : '收起侧边栏');
+      btn.title = collapsed ? '展开侧边栏' : '收起侧边栏';
+    }
+    syncRailTitles();
+    try { localStorage.setItem('portal-rail', collapsed ? 'collapsed' : 'open'); } catch (e) {}
+  }
+
+  function initRail() {
+    var saved = null;
+    try { saved = localStorage.getItem('portal-rail'); } catch (e) {}
+    applyRail(saved === 'collapsed');
+    var btn = $('railToggle');
+    if (btn) {
+      btn.addEventListener('click', function () { applyRail(!state.railCollapsed); });
+    }
+  }
+
   // ---------- 导航 ----------
   // 数字标在入口上：概览看「卡住的项目」，记忆看「没做完的事」，
   // 其余按各自的主要计数。0 不显示——一个空计数的角标只是噪音。
@@ -155,6 +192,8 @@
         el.addEventListener('click', function () { setView(el.dataset.view); });
       }
     );
+    // 重渲染会把 title 冲掉，收起状态要补回来
+    syncRailTitles();
   }
 
   // 入口和面板都能传进来：setView('memory') 打开记忆入口上次的 tab，
@@ -2379,6 +2418,7 @@
 
   function init() {
     initTheme();
+    initRail();
 
     $('unlockBtn').addEventListener('click', unlock);
     $('passwordInput').addEventListener('keydown', function (e) {

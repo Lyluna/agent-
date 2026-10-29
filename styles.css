@@ -71,6 +71,7 @@
   --sp-7: 48px;
 
   --rail: 236px;
+  --rail-collapsed: 64px;
   --pad: var(--sp-7);
 }
 
@@ -253,6 +254,52 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
   font-weight: 600;
   letter-spacing: -0.01em;
 }
+/* 收起按钮要挤在同一行，品牌文字必须可压缩，否则按钮被顶出侧栏 */
+.rail-brand .brand-word { min-width: 0; flex: 1 1 auto; }
+.rail-brand .brand-sub { white-space: nowrap; }
+
+/* 收起按钮：只换 grid 的列宽，不做宽度动画——grid-template-columns 过渡在
+   各浏览器表现不一致，宁可直接跳。手机端 .rail-brand 本来就是隐藏的，
+   所以这个按钮窄屏下自然不出现（横向导航没有「收起」的意义）。 */
+.rail-collapse {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.rail-collapse svg { width: 14px; height: 14px; transition: transform .16s ease; }
+.rail-collapse:hover { background: var(--active); color: var(--text); }
+.rail-collapse:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+#app.rail-collapsed { grid-template-columns: var(--rail-collapsed) minmax(0, 1fr); }
+/* 64px 宽塞不下「图标 + 按钮」一行，改成竖排：上面是标识，下面是展开按钮 */
+.rail-collapsed .rail-brand { flex-direction: column; gap: 8px; padding: 0 0 4px; }
+.rail-collapsed .rail-brand .brand-word { display: none; }
+.rail-collapsed .rail-collapse { margin-left: 0; }
+.rail-collapsed .rail-collapse svg { transform: rotate(180deg); }
+.rail-collapsed .rail-item { justify-content: center; padding: 0 8px; }
+/* 文字视觉隐藏，但保留在无障碍树里：display:none 会让读屏也读不到，
+   收起后就成了 6 个没有名字的按钮。 */
+.rail-collapsed .rail-item span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.rail-collapsed .rail-foot { align-items: center; padding: 16px 0 0; }
+.rail-collapsed .rail-foot .kbd-hint,
+.rail-collapsed .rail-foot .theme-toggle span { display: none; }
+.rail-collapsed .rail-foot .theme-toggle { justify-content: center; }
 
 .rail-nav { display: flex; flex-direction: column; gap: 4px; }
 
