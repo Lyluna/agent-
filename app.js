@@ -1,6 +1,8 @@
 /* ============================================================
    门户主逻辑
-   六个分区各自是一个视图；顶部命令面板做跨分区搜索。
+   六个导航入口；「记忆」「系统」各带 tab，tab 才是真正的渲染面板。
+   旧的分区 id（facts / beliefs / intents / usage / disk / work）仍然有效，
+   深链和命令面板都按别名解析到新入口，不会因为合并而失效。
    ============================================================ */
 (function () {
   'use strict';
@@ -9,7 +11,9 @@
   var MEM = { profile: {}, facts: [], beliefs: [], beliefCategories: [],
               intents: [], sections: {} };
   var state = {
-    view: 'overview',
+    view: 'overview',      // 导航入口（6 个之一）
+    panel: 'overview',     // 真正在渲染的分区；等于 state.view 时没有 tab
+    tabs: {},              // 每个入口上次打开的 tab，切回去还停在原处
     tool: 'all',
     agent: 'all',
     category: 'all',
@@ -18,18 +22,30 @@
     paletteHits: []
   };
 
+  // 10 个分区收成 6 个入口。合并的原则是「回答同一个问题」：
+  // 事实 / 认知 / 待办都在回答「我记得什么」，使用 / 磁盘都在回答「这套系统自己怎么样」。
+  // 「要求」不并进「知识」——它是用户提过什么，和总结出来的知识不是一回事（用户 2026-10-28 定）。
   var VIEWS = [
-    { id: 'overview',  label: '概览',   icon: 'grid' },
-    { id: 'work',      label: '工作台', icon: 'board' },
-    { id: 'facts',     label: '事实',   icon: 'clock' },
-    { id: 'beliefs',   label: '认知',   icon: 'bulb' },
-    { id: 'intents',   label: '待办',   icon: 'check' },
-    { id: 'knowledge', label: '知识', icon: 'drop' },
-    { id: 'graph', label: '关系', icon: 'graph' },
-    { id: 'requests', label: '要求', icon: 'check' },
-    { id: 'usage', label: '使用', icon: 'pulse' },
-    { id: 'disk', label: '磁盘', icon: 'disk' }
+    { id: 'overview',  label: '概览', icon: 'grid',  panels: ['overview', 'work'] },
+    { id: 'memory',    label: '记忆', icon: 'clock', panels: ['facts', 'beliefs', 'intents'] },
+    { id: 'knowledge', label: '知识', icon: 'drop',  panels: ['knowledge'] },
+    { id: 'requests',  label: '要求', icon: 'check', panels: ['requests'] },
+    { id: 'graph',     label: '关系', icon: 'graph', panels: ['graph'] },
+    { id: 'system',    label: '系统', icon: 'pulse', panels: ['usage', 'disk'] }
   ];
+
+  var PANEL_LABEL = {
+    overview: '概览', work: '工作台',
+    facts: '事实', beliefs: '认知', intents: '待办',
+    knowledge: '知识', requests: '要求', graph: '关系',
+    usage: '使用', disk: '磁盘'
+  };
+
+  // 旧分区 id → 新入口。深链 #view=facts、命令面板、data-go 都靠这张表找回位置
+  var PANEL_OF = {};
+  VIEWS.forEach(function (v) {
+    v.panels.forEach(function (p) { PANEL_OF[p] = v.id; });
+  });
 
   var ICONS = {
     disk:  '<rect x="3" y="5" width="18" height="6" rx="2"/><rect x="3" y="13" width="18" height="6" rx="2"/><path d="M7 8h.01M7 16h.01"/>',
@@ -109,18 +125,19 @@
   }
 
   // ---------- 导航 ----------
+  // 数字标在入口上：概览看「卡住的项目」，记忆看「没做完的事」，
+  // 其余按各自的主要计数。0 不显示——一个空计数的角标只是噪音。
   function renderRail() {
+    var pending = MEM.intents.filter(isPending).length;
     var counts = {
-      overview: null,
-      work: (MEM.projects || []).filter(function (p) { return p.blocked && p.blocked !== '无'; }).length || null,
-      facts: MEM.facts.length,
-      beliefs: MEM.beliefs.length,
-      intents: MEM.intents.filter(isPending).length,
+      overview: (MEM.projects || []).filter(function (p) { return p.blocked && p.blocked !== '无'; }).length,
+      memory: pending,
       knowledge: (MEM.sections.distilled ? MEM.sections.distilled.count : 0) +
                  (MEM.sections.skills ? MEM.sections.skills.count : 0) +
                  (MEM.sections.tools ? MEM.sections.tools.count : 0),
-      usage: (MEM.usage && MEM.usage.coverage ? MEM.usage.coverage.sessions : 0) || null,
-      graph: null
+      requests: (MEM.requests || []).filter(function (r) { return r.kind === 'request'; }).length,
+      graph: 0,
+      system: (MEM.usage && MEM.usage.coverage ? MEM.usage.coverage.sessions : 0) || 0
     };
 
     $('railNav').innerHTML = VIEWS.map(function (v) {
@@ -140,28 +157,62 @@
     );
   }
 
+  // 入口和面板都能传进来：setView('memory') 打开记忆入口上次的 tab，
+  // setView('beliefs') 直接落到「认知」tab。旧链接靠的就是这一点。
   function setView(id) {
-    state.view = id;
+    var entry = VIEWS.filter(function (v) { return v.id === id; })[0];
+    var asked = PANEL_OF[id] ? id : null;   // 传进来的是某个面板（旧链接 / tab / data-go）
+    var view = entry ? entry.id : (asked ? PANEL_OF[asked] : 'overview');
+    var g = VIEWS.filter(function (v) { return v.id === view; })[0];
+    // 没指名面板就回到这个入口上次待过的那一个
+    var panel = asked || state.tabs[view] || g.panels[0];
+
+    state.view = view;
+    state.panel = panel;
+    state.tabs[view] = panel;
+
     Array.prototype.forEach.call(
       document.querySelectorAll('.view'),
-      function (el) { el.classList.toggle('active', el.id === 'view-' + id); }
+      function (el) { el.classList.toggle('active', el.id === 'view-' + panel); }
     );
     Array.prototype.forEach.call(
       document.querySelectorAll('.rail-item'),
-      function (el) { el.setAttribute('aria-current', el.dataset.view === id); }
+      function (el) { el.setAttribute('aria-current', el.dataset.view === state.view); }
     );
 
-    var v = VIEWS.filter(function (x) { return x.id === id; })[0];
+    renderTabs();
+    var v = VIEWS.filter(function (x) { return x.id === state.view; })[0];
     $('pageTitle').textContent = v ? v.label : '概览';
     renderHead();
-    // 工具筛选只在「事实」视图有意义
-    $('toolFilter').style.display = id === 'facts' ? '' : 'none';
-    $('searchBtn').style.display = id === 'facts' || id === 'graph' ? 'none' : '';
-    document.body.dataset.view = id;
-    if (id === 'graph' && globalThis.PortalGraph) PortalGraph.refresh();
-    try { history.replaceState(null, '', location.pathname + location.search + '#view=' + id); } catch (e) {}
+    // 工具筛选只在「事实」面板有意义
+    $('toolFilter').style.display = panel === 'facts' ? '' : 'none';
+    $('searchBtn').style.display = panel === 'facts' || panel === 'graph' ? 'none' : '';
+    document.body.dataset.view = panel;
+    if (panel === 'graph' && globalThis.PortalGraph) PortalGraph.refresh();
+    // 地址栏记面板 id 而不是入口 id：老链接照样能还原到具体的 tab
+    try { history.replaceState(null, '', location.pathname + location.search + '#view=' + panel); } catch (e) {}
 
     window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  }
+
+  // 只有多面板的入口才有 tab；单面板入口的标题已经说清了是什么，再排一行 tab 是重复
+  function renderTabs() {
+    var v = VIEWS.filter(function (x) { return x.id === state.view; })[0];
+    var box = $('viewTabs');
+    if (!v || v.panels.length < 2) {
+      box.innerHTML = '';
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = v.panels.map(function (p) {
+      var on = p === state.panel;
+      return '<button class="tab" role="tab" data-panel="' + p + '" ' +
+        'aria-selected="' + on + '">' + esc(PANEL_LABEL[p] || p) + '</button>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('.tab'), function (el) {
+      el.addEventListener('click', function () { setView(el.dataset.panel); });
+    });
   }
 
   // ---------- 页头：一句话说清这一屏在回答什么 ----------
@@ -172,36 +223,36 @@
     var high = pending.filter(function (i) { return i.priority === 'high'; });
 
     var finding = '';
-    if (state.view === 'overview') {
+    if (state.panel === 'overview') {
       finding = '<b class="num">' + MEM.facts.length + '</b> 次对话，' +
         '<b class="num">' + MEM.beliefs.length + '</b> 条结论，' +
         '<b class="num">' + pending.length + '</b> 项待办。';
-    } else if (state.view === 'work') {
+    } else if (state.panel === 'work') {
       var ps = MEM.projects || [];
       var blocked = ps.filter(function (p) { return p.blocked && p.blocked !== '无'; });
       finding = '<b class="num">' + ps.length + '</b> 个项目，' +
         '<b class="num">' + blocked.length + '</b> 个卡着，' +
         '<b class="num">' + pending.length + '</b> 项待办。';
-    } else if (state.view === 'facts') {
+    } else if (state.panel === 'facts') {
       finding = '最近一次归档在 <b>' + esc((MEM.facts[0] || {}).date || '-') + '</b>' +
         (live.length ? '，<b class="num">' + live.length + '</b> 个对话仍在进行' : '') + '。';
-    } else if (state.view === 'beliefs') {
+    } else if (state.panel === 'beliefs') {
       finding = '从对话里沉淀下来的结论，越靠前越新。';
-    } else if (state.view === 'intents') {
+    } else if (state.panel === 'intents') {
       finding = pending.length
         ? '<b class="num">' + pending.length + '</b> 项未完成' +
           (high.length ? '，<b class="num">' + high.length + '</b> 项高优先级' : '') + '。'
         : '所有待办已完成。';
-    } else if (state.view === 'knowledge') {
+    } else if (state.panel === 'knowledge') {
       var sk = MEM.sections.skills || { count: 0 };
       var tl = MEM.sections.tools || { count: 0 };
       var ds = MEM.sections.distilled || { count: 0 };
       finding = '<b class="num">' + ds.count + '</b> 条可复用结论 · ' +
         '<b class="num">' + sk.count + '</b> 个技能 · <b class="num">' +
         tl.count + '</b> 个工具。';
-    } else if (state.view === 'requests') {
+    } else if (state.panel === 'requests') {
       renderRequests();
-    } else if (state.view === 'usage') {
+    } else if (state.panel === 'usage') {
       var uc = (MEM.usage && MEM.usage.coverage) || {};
       finding = uc.calls
         ? '<b class="num">' + uc.sessions + '</b> 次会话里，' +
@@ -210,9 +261,9 @@
           '<b class="num">' + uc.fails + '</b> 次失败。'
         : '还没有使用数据。';
       renderUsage();
-    } else if (state.view === 'disk') {
+    } else if (state.panel === 'disk') {
       renderDisk();
-    } else if (state.view === 'graph') {
+    } else if (state.panel === 'graph') {
       finding = '从一条对话或知识出发，沿着真实关联找到它的来源。';
     }
 
@@ -531,11 +582,7 @@
         if (row) {
           row.classList.add('open');
           var body = row.querySelector('.detail-body');
-          if (body && !body.dataset.filled) {
-            var f = MEM.facts.filter(function (x) { return x.file === body.dataset.file; })[0];
-            if (f) body.textContent = f.detail || '';
-            body.dataset.filled = '1';
-          }
+          if (body && !body.dataset.filled) fillDetail(body);
           row.scrollIntoView({ block: 'center' });
           row.focus({ preventScroll: true });
         }
@@ -672,15 +719,55 @@
         if (row) {
           row.classList.add('open');
           var body = row.querySelector('.detail-body');
-          if (body && !body.dataset.filled) {
-            var f = MEM.facts.filter(function (x) { return x.file === body.dataset.file; })[0];
-            if (f) body.textContent = f.detail || '';
-            body.dataset.filled = '1';
-          }
+          if (body && !body.dataset.filled) fillDetail(body);
           row.scrollIntoView({ block: 'center' });
           row.focus({ preventScroll: true });
         }
       });
+    });
+  }
+
+  // ---------- 事实正文（按需取） ----------
+  // 正文合计约 5 MB，占了索引的 89%。generate.py 已按月拆到 facts/YYYY-MM.bin，
+  // 展开某条时才下载并解密它所在的那一期；同一期只取一次，缓存在内存里。
+  var CHUNK_CACHE = {};    // 'YYYY-MM' -> { 文件名: 正文 }
+  var CHUNK_PENDING = {};  // 'YYYY-MM' -> Promise，同一期并发展开不会拉两遍
+
+  function factByFile(file) {
+    for (var i = 0; i < MEM.facts.length; i++) {
+      if (MEM.facts[i].file === file) return MEM.facts[i];
+    }
+    return null;
+  }
+
+  function loadChunk(month) {
+    if (CHUNK_CACHE[month]) return Promise.resolve(CHUNK_CACHE[month]);
+    if (CHUNK_PENDING[month]) return CHUNK_PENDING[month];
+    var p = PortalCrypto.decryptChunk(month).then(function (map) {
+      delete CHUNK_PENDING[month];
+      CHUNK_CACHE[month] = map || {};
+      return CHUNK_CACHE[month];
+    }, function (e) {
+      delete CHUNK_PENDING[month];
+      throw e;
+    });
+    CHUNK_PENDING[month] = p;
+    return p;
+  }
+
+  // 先写占位再取：正文几十 KB，等它回来才撑开会让列表往下跳一大截
+  function fillDetail(body) {
+    body.dataset.filled = '1';
+    var f = factByFile(body.dataset.file);
+    if (!f || !f.chunk) { body.textContent = ''; return; }
+    body.textContent = '正在读取这段对话…';
+    loadChunk(f.chunk).then(function (map) {
+      body.textContent = map[body.dataset.file] || '（这一期分片里没有这条正文）';
+    }, function (e) {
+      console.error(e);
+      body.textContent = e && e.message === 'FETCH_FAILED'
+        ? '正文没取到：facts/' + f.chunk + '.bin 不在线上，重新生成门户后再试'
+        : '正文解密失败，刷新页面重新输入密码';
     });
   }
 
@@ -770,11 +857,7 @@
         // 首次展开时才填正文：首屏只渲染摘要，避免一次解析几十万字符
         if (el.classList.contains('open')) {
           var body = el.querySelector('.detail-body');
-          if (body && !body.dataset.filled) {
-            var f = MEM.facts.filter(function (x) { return x.file === body.dataset.file; })[0];
-            if (f) body.textContent = f.detail || '';
-            body.dataset.filled = '1';
-          }
+          if (body && !body.dataset.filled) fillDetail(body);
         }
       }
       el.addEventListener('click', function (e) {
@@ -873,7 +956,7 @@
       renderFacts();
       renderRail();
       renderHead();
-      if (state.view === 'overview') renderOverview();
+      if (state.panel === 'overview') renderOverview();
     }).catch(function (err) {
       el.disabled = false;
       el.textContent = restore;
@@ -891,7 +974,7 @@
       renderFacts();
       renderRail();
       renderHead();
-      if (state.view === 'overview') renderOverview();
+      if (state.panel === 'overview') renderOverview();
     }).catch(function (err) {
       el.disabled = false;
       el.textContent = restore;
@@ -938,7 +1021,7 @@
       renderFacts();
       renderRail();
       renderHead();
-      if (state.view === 'overview') renderOverview();
+      if (state.panel === 'overview') renderOverview();
       toast('已合并为：' + res.merged + '（来源已移进 _已作废/）');
     }).catch(function (err) {
       toast('合并失败：' + err.message, true);
@@ -1323,7 +1406,7 @@
       renderWork();
       renderRail();
       renderHead();
-      if (state.view === 'overview') renderOverview();
+      if (state.panel === 'overview') renderOverview();
     }).catch(function (err) {
       el.disabled = false;
       if (err && err.message) toast(err.message, true);
@@ -1341,7 +1424,7 @@
       renderWork();
       renderRail();
       renderHead();
-      if (state.view === 'overview') renderOverview();
+      if (state.panel === 'overview') renderOverview();
     }).catch(function (err) {
       el.disabled = false;
       toast('云端写入失败：' + err.message, true);
@@ -1364,7 +1447,7 @@
       renderIntents();
       renderRail();
       renderHead();
-      if (state.view === 'overview') renderOverview();
+      if (state.panel === 'overview') renderOverview();
       if (!res.regenerated) console.warn('数据未重新生成：', res.log);
     }).catch(function (err) {
       if (el.classList.contains('close-btn')) {
@@ -1387,7 +1470,7 @@
       renderIntents();
       renderRail();
       renderHead();
-      if (state.view === 'overview') renderOverview();
+      if (state.panel === 'overview') renderOverview();
     }).catch(function (err) {
       if (el.classList.contains('close-btn')) {
         el.disabled = false;
@@ -1474,9 +1557,9 @@
           if (j.sha) editSha = j.sha;   // 首次拿到待办指纹，后续写回带它做乐观锁
 
           // 事实视图的删除 / 合并按钮只在可写时出现，探测完要重绘一次
-          if (state.view === 'intents') renderIntents();
-          else if (state.view === 'facts') renderFacts();
-          else if (state.view === 'overview') renderOverview();
+          if (state.panel === 'intents') renderIntents();
+          else if (state.panel === 'facts') renderFacts();
+          else if (state.panel === 'overview') renderOverview();
         }
       })
       .catch(function () {});
@@ -2212,12 +2295,19 @@
         $('palette').classList.contains('open') ? closePalette() : openPalette();
       }
       if (e.key === 'Escape' && $('palette').classList.contains('open')) closePalette();
-      // 数字键 1-7 跳分区（不在输入框里时）
-      if (!mod && /^[1-7]$/.test(e.key) &&
+      // 数字键 1-6 跳入口（不在输入框里时）。入口从 10 个收到 6 个，键位跟着收
+      if (!mod && /^[1-6]$/.test(e.key) &&
           !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
         setView(VIEWS[parseInt(e.key, 10) - 1].id);
       }
     });
+  }
+
+  // 刷新后停回原来那一屏。#view= 里存的是面板 id（facts / beliefs…），
+  // 合并入口之前存下的老链接也认，解析不了就回概览。
+  function initialView() {
+    var m = /#view=([a-z]+)/.exec(location.hash || '');
+    return m ? m[1] : 'overview';
   }
 
   // ---------- 解锁 ----------
@@ -2243,7 +2333,7 @@
       $('app').classList.add('ready');
 
       renderAll();
-      setView('overview');
+      setView(initialView());
       detectWritable();
 
       input.value = '';

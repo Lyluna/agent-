@@ -446,6 +446,46 @@ kbd {
 
 .cat-row { margin-bottom: 16px; }
 
+/* 入口内的 tab：只有「记忆」「系统」两个入口有。
+   用下划线而不是胶囊——胶囊会和工具栏里的工具筛选 chip 撞在一起，
+   两种圆角控件挨着会让人分不清哪个管当前分区、哪个管列表内容。 */
+/* display:flex 会盖掉 UA 的 [hidden]{display:none}，单面板入口得自己挡 */
+.tabs[hidden] { display: none; }
+
+.tabs {
+  display: flex;
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--rule);
+}
+
+.tab {
+  height: var(--control-h);
+  margin-bottom: -1px;
+  padding: 0;
+  font-size: var(--fs-body);
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color .1s, border-color .1s;
+}
+
+.tab:hover { color: var(--text); }
+
+.tab:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+  border-radius: var(--radius-chip);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--text);
+  font-weight: 500;
+  border-bottom-color: var(--primary);
+}
+
 /* 分区 */
 .view { display: none; }
 .view.active { display: block; }
@@ -2396,4 +2436,131 @@ body.drawer-open { overflow: hidden; }
   .usage-row { grid-template-columns: 100px minmax(0, 1fr) 110px; row-gap: 4px; }
   .usage-tool, .usage-skills-cell { display: none; }
   .usage-bar-row { grid-template-columns: 92px 1fr 52px; }
+}
+
+/* ============================================================
+   2026-10-30 · 手机端（≤ 760px）
+   全部写在文件最后：前面的同选择器规则多半写在更早的分节里，
+   位置在后才赢——改样式前先确认哪一层生效（见技术决策同名条目）。
+   目标：底部导航 / 点击目标 ≥ 44px / 无横向滚动。
+   ============================================================ */
+@media (max-width: 760px) {
+  /* 右上角那一簇按钮占的宽度：两个 44px + 间隔。页头要让开这么多 */
+  :root { --util-w: 96px; }
+
+  /* 侧栏在手机上不存在了：把两个子块提到 #app 网格里，各走各的固定定位。
+     .rail 自身的背景、右边框一并失效，不用再单独清。 */
+  .rail { display: contents; }
+
+  .rail-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    flex-direction: row;
+    gap: 0;
+    padding: var(--sp-1) var(--sp-1) calc(var(--sp-1) + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+
+  .rail-item {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 52px;
+    min-height: 52px;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--sp-1);
+    padding: 0;
+    font-size: var(--fs-micro);
+    border-radius: var(--radius-control);
+  }
+  .rail-item svg { width: 18px; height: 18px; }
+  /* 底部导航一行放不下计数角标：挤掉文字比缩小点击区更糟 */
+  .rail-item .n { display: none; }
+  .rail-item[aria-current="true"] { background: var(--active); box-shadow: none; }
+  .rail-item[aria-current="true"]::before { display: none; }
+
+  /* 主题与云端挪到右上角：底部一格已经放满 6 个入口 */
+  .rail-foot {
+    /* 早先的窄屏规则整块藏了它；现在改到右上角单列两个图标按钮 */
+    display: flex;
+    position: fixed;
+    top: var(--sp-2);
+    right: var(--sp-2);
+    z-index: 60;
+    margin: 0;
+    padding: 0;
+    border-top: 0;
+    flex-direction: row;
+    gap: var(--sp-1);
+  }
+  .rail-foot .kbd-hint { display: none; }
+  .rail-foot .theme-toggle {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .rail-foot .theme-toggle span { display: none; }
+  .rail-foot .theme-toggle svg { width: 18px; height: 18px; }
+
+  /* 给固定导航让出位置，否则最后一条内容会被压在导航下面 */
+  #app.ready { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+
+  /* 提示条默认贴在右下角，正好被底部导航挡住 */
+  .toast-box { bottom: calc(76px + env(safe-area-inset-bottom)); right: var(--sp-3); }
+
+  /* 右上角那两个按钮压着页头，标题与说明整体让开 */
+  .page-head { padding-right: var(--util-w); }
+
+  /* 名字和角色在手机上每屏都占一行，只留更新时间 */
+  .page-head .meta span:nth-child(-n+2) { display: none; }
+
+  /* 触摸目标：手指比鼠标指针粗，28/32px 的控件在手机上点不准。
+     逐条列出来总会漏（写完这行又冒出 close-btn / req-del / motionBtn），
+     所以对着所有按钮和可展开项统一兜底；复选框不在此列，它的点击区由
+     .intent-box::before 的 inset 撑开，撑高会把它画歪。 */
+  button:not(.intent-box):not(.pick-box),
+  summary,
+  input[type="search"],
+  input[type="text"] { min-height: 44px; }
+
+  /* 勾选框是画出来的 15px 方块，撑高会把它拉成一条；它的点击区靠 ::before 的
+     inset 撑开，不需要更高的按钮 */
+  .intent-box, .pick-box { min-height: 0; }
+  /* 本体 15px，撑到 47px 靠伪元素的负 inset（比 44 多留一点边） */
+  .intent-box::before, .pick-box::before { inset: calc(-1 * var(--sp-4)); }
+
+  /* 类选择器比元素选择器更具体，上面那条兜不住它们，得单独写一次 */
+  .graph-filter,
+  .graph-toolbar > .ghost-btn,
+  .action-btn.sm { min-height: 44px; }
+
+  .chip { padding: 0 var(--sp-4); }
+  .tab { padding: 0 var(--sp-2); }
+
+  /* tab 可能比一行宽（记忆 3 个 + 长词），让它自己滚，不撑破页面 */
+  .tabs { overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; }
+
+  /* 三列表格在 358px 里横排必然截断。竖排显示：日期 / 主题 / 结论 各占一行，
+     表头没有意义（每格都是整句中文），所以藏掉。
+     不改成横向滚动——没有滚动提示时，用户只会以为最后一列被裁掉了。 */
+  .table-wrap table { min-width: 0; }
+  .table-wrap thead { display: none; }
+  .table-wrap tr {
+    display: block;
+    padding: var(--sp-3) 0;
+    border-top: 1px solid var(--rule);
+  }
+  .table-wrap tr:first-child { border-top: 0; }
+  /* 单元格自己的下边框必须清掉：竖排后每格一条线，读起来像被切成三段 */
+  .table-wrap td { display: block; padding: 0 var(--sp-4); border-bottom: 0; }
+  .table-wrap td:empty { display: none; }
 }
