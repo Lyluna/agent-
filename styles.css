@@ -2642,6 +2642,75 @@ body.drawer-open { overflow: hidden; }
 .ag-name { font-size: var(--fs-micro); fill: var(--text); }
 .ag-sub { font-size: var(--fs-micro); fill: var(--faint); }
 
+/* 每条会话一行：任务原文 + 进度。时间轴给出「何时」，这一列给出「做什么」。 */
+.ag-tasks { margin-top: var(--sp-2); border-top: 1px solid var(--border); }
+.ag-task { border-bottom: 1px solid var(--border); }
+.ag-task.d1 { padding-left: var(--sp-4); }
+.ag-task.d2 { padding-left: var(--sp-6); }
+.ag-task.d3 { padding-left: var(--sp-7); }
+.ag-task summary {
+  display: grid;
+  grid-template-columns: auto minmax(96px, 150px) minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  cursor: pointer;
+  list-style: none;
+}
+.ag-task summary::-webkit-details-marker { display: none; }
+.ag-task summary::before { content: "▸"; color: var(--faint); font-size: var(--fs-micro); }
+.ag-task[open] summary::before { content: "▾"; }
+.ag-tw {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-ta {
+  font-size: var(--fs-small);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-tc { font-size: var(--fs-micro); color: var(--faint); white-space: nowrap; }
+.ag-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--faint);
+  margin-right: var(--sp-1);
+  vertical-align: middle;
+}
+.ag-dot.on { background: var(--signal); }
+.ag-task-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: 0 0 var(--sp-3) var(--sp-4);
+}
+.ag-k { font-size: var(--fs-micro); color: var(--faint); }
+.ag-v {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.6;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.ag-none { color: var(--faint); }
+
+/* 窄屏：任务原文换到第二行，否则名字和摘要在同一行互相挤压 */
+@media (max-width: 760px) {
+  .ag-task summary { grid-template-columns: auto minmax(0, 1fr); }
+  .ag-ta { grid-column: 2; white-space: normal; }
+  .ag-tc { grid-column: 2; }
+  .ag-task.d1 { padding-left: var(--sp-2); }
+  .ag-task.d2,
+  .ag-task.d3 { padding-left: var(--sp-3); }
+}
+
 .ag-single { margin-top: var(--sp-4); }
 .ag-single summary { cursor: pointer; color: var(--muted); font-size: var(--fs-small); }
 .ag-single-list { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-top: var(--sp-2); }

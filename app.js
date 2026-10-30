@@ -2113,6 +2113,53 @@
     return '<div class="ag-chart">' + out.join('') + '</div>';
   }
 
+  // 时间轴只回答「谁和谁同时在跑」，回答不了「父代理让它干什么、它做到哪」。
+  // 每行补上任务原文（快照截 240 字）与进度，点开看全文和最后一段输出。
+  function agState(a) {
+    if (a.ended) return '已结束';
+    var age = a.lastTs && agRef ? agRef - a.lastTs : 0;
+    if (age < 45) return '快照时在跑';
+    return '空闲 ' + agDur(age);
+  }
+
+  function agTaskRow(a, parentTitle) {
+    var depth = Math.min(a.depth || 0, 3);
+    var state = agState(a);
+    var ask = a.task || '';
+    var chips = [];
+    if (a.steps) chips.push(a.steps + ' 步');
+    if (a.lastTool) chips.push(a.lastTool);
+    chips.push(state);
+
+    var body = [];
+    if (a.parent && a.parent !== a.id) {
+      body.push('<div class="ag-k">谁派的</div><p class="ag-v">' +
+        esc(parentTitle || a.parent) + '</p>');
+    }
+    body.push('<div class="ag-k">派了什么活</div><p class="ag-v">' +
+      (ask ? esc(ask) : '<span class="ag-none">日志里没有可辨识的任务原文</span>') + '</p>');
+    var prog = [];
+    if (a.turn) prog.push('第 ' + a.turn + ' 轮');
+    prog.push((a.steps || 0) + ' 步');
+    if (a.lastTool) prog.push('最后用 ' + a.lastTool);
+    if ((a.jobs || []).length) prog.push((a.jobs || []).length + ' 个后台任务');
+    if ((a.approvals || []).length) prog.push('在等审批：' + a.approvals[0]);
+    prog.push(agClock(a.createdAt) + ' → ' + agClock(a.lastTs) +
+      '（' + agDur((a.lastTs || 0) - (a.createdAt || 0)) + '）');
+    body.push('<div class="ag-k">做到哪</div><p class="ag-v">' +
+      prog.map(esc).join(' · ') + '</p>');
+    if (a.lastText) {
+      body.push('<div class="ag-k">最后一段输出</div><p class="ag-v">' + esc(a.lastText) + '</p>');
+    }
+
+    return '<details class="ag-task d' + depth + '"><summary>' +
+      '<span class="ag-tw"><span class="ag-dot' +
+        (state === '快照时在跑' ? ' on' : '') + '"></span>' + esc(agName(a)) + '</span>' +
+      '<span class="ag-ta">' + (ask ? esc(agClip(ask, 64)) : '（无任务原文）') + '</span>' +
+      '<span class="ag-tc">' + chips.map(esc).join(' · ') + '</span></summary>' +
+      '<div class="ag-task-body">' + body.join('') + '</div></details>';
+  }
+
   function renderAgents() {
     var box = $('view-agents');
     if (!box) return;
@@ -2136,7 +2183,8 @@
     var html = '<div class="sec-label"><h2>谁在指挥谁</h2>' +
       '<span class="count">' + multi.length + ' 条并行/接力链</span></div>' +
       '<p class="sec-note">从 DSH 与 Claude Code 的会话日志里读出来的真实时间。' +
-      '横条是活跃区间，中间的缺口是空闲（超过 10 分钟压缩）。' +
+      '横条是活跃区间，中间的缺口是空闲（超过 10 分钟压缩）；' +
+      '下面每条会话点开，能看到<strong>父代理派下来的任务原文、已经走到第几步、最后一段输出</strong>。' +
       '跨工具的接力靠 <code>08-AI记忆/_agent/chains.jsonl</code> 登记，日志里没有共同主键，推断的不算数。' +
       (stamp ? ' <b>数据截至 ' + agClock(stamp.getTime() / 1000) + '</b>（最后一条会话活动），之后的新会话要等下次生成。' : '') +
       '</p>' +
@@ -2155,7 +2203,10 @@
         '<div class="ag-head"><h3>' + esc(root.title || c.id) + '</h3>' +
         '<span class="ag-meta">' + c.size + ' 个会话 · ' + esc((c.runtimes || []).join(' + ')) +
         ' · ' + agDur(c.lastTs - c.startTs) + ' · 最后活动 ' + agClock(c.lastTs) + '</span></div>' +
-        agTimeline(members) + '</section>';
+        agTimeline(members) +
+        '<div class="ag-tasks">' + members.map(function (a) {
+          return agTaskRow(a, root.title || c.id);
+        }).join('') + '</div></section>';
     }).join('');
 
     if (single.length) {
@@ -2164,7 +2215,8 @@
         '<div class="ag-single-list">' +
         single.slice(0, 40).map(function (c) {
           var a = agents[c.id] || {};
-          return '<span>' + esc(agClip(a.title || c.id, 18)) + ' · ' +
+          return '<span>' + esc(agClip(a.title || c.id, 18)) +
+            (a.task ? ' — ' + esc(agClip(a.task, 24)) : '') + ' · ' +
             agClock(c.lastTs) + '</span>';
         }).join('') + '</div></details>';
     }
