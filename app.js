@@ -32,14 +32,14 @@
     { id: 'knowledge', label: '知识', icon: 'drop',  panels: ['knowledge'] },
     { id: 'requests',  label: '要求', icon: 'check', panels: ['requests'] },
     { id: 'graph',     label: '关系', icon: 'graph', panels: ['graph'] },
-    { id: 'system',    label: '系统', icon: 'pulse', panels: ['usage', 'disk'] }
+    { id: 'system',    label: '系统', icon: 'pulse', panels: ['usage', 'disk', 'agents'] }
   ];
 
   var PANEL_LABEL = {
     overview: '概览', work: '工作台',
     facts: '事实', beliefs: '认知', intents: '待办',
     knowledge: '知识', requests: '要求', graph: '关系',
-    usage: '使用', disk: '磁盘'
+    usage: '使用', disk: '磁盘', agents: '协作'
   };
 
   // 旧分区 id → 新入口。深链 #view=facts、命令面板、data-go 都靠这张表找回位置
@@ -225,7 +225,7 @@
     renderHead();
     // 工具筛选只在「事实」面板有意义
     $('toolFilter').style.display = panel === 'facts' ? '' : 'none';
-    $('searchBtn').style.display = panel === 'facts' || panel === 'graph' ? 'none' : '';
+    $('searchBtn').style.display = panel === 'facts' || panel === 'graph' || panel === 'agents' ? 'none' : '';
     document.body.dataset.view = panel;
     if (panel === 'graph' && globalThis.PortalGraph) PortalGraph.refresh();
     // 地址栏记面板 id 而不是入口 id：老链接照样能还原到具体的 tab
@@ -302,6 +302,14 @@
       renderUsage();
     } else if (state.panel === 'disk') {
       renderDisk();
+    } else if (state.panel === 'agents') {
+      var ac = MEM.agentChains || {};
+      var multiCount = (ac.chains || []).filter(function (c) { return c.size > 1; }).length;
+      finding = ac.total
+        ? '<b class="num">' + ac.total + '</b> 个会话连成 <b class="num">' + (ac.chains || []).length +
+          '</b> 条链，其中 <b class="num">' + multiCount + '</b> 条是并行或接力。条越短，说明那段只是打了一两个来回。'
+        : '还没有协作数据。在本机跑一次 <code>python 08-AI记忆/tools/agent_chains.py write</code> 再生成门户。';
+      renderAgents();
     } else if (state.panel === 'graph') {
       finding = '从一条对话或知识出发，沿着真实关联找到它的来源。';
     }
@@ -1949,6 +1957,219 @@
   // ---------- 使用（每次会话用了什么） ----------
   function usageNum(n) {
     return String(n == null ? 0 : n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  // ---------- 协作：谁派的谁，各自走到哪 ----------
+  // 数据来自 08-AI记忆/tools/agent_chains.py 的快照。门户是静态站，
+  // 所以这里只能显示「截至某时」的状态，实时视图在本地 6869。
+  function agDur(s) {
+    s = Math.max(0, s || 0);
+    if (s < 60) return Math.round(s) + ' 秒';
+    if (s < 3600) return Math.round(s / 60) + ' 分';
+    if (s < 86400) return (s / 3600).toFixed(1) + ' 小时';
+    return (s / 86400).toFixed(1) + ' 天';
+  }
+
+  function agClock(t) {
+    if (!t) return '—';
+    var d = new Date(t * 1000);
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+      ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  }
+
+  function agClip(s, n) {
+    s = String(s || '');
+    return s.length > n ? s.slice(0, n - 1) + '…' : s;
+  }
+
+  // Claude Code 的会话标题常常就是「Claude Code 3d7b6b65」，截断后只剩「Claude Code …」，
+  // 十个子代理看起来一模一样。这种情况改用短 id，至少能对上号。
+  function agName(a) {
+    var t = String(a.title || '');
+    if (/^Claude Code/.test(t)) return 'CC ' + (a.short || '');
+    return agClip(t || a.short || a.id, 13);
+  }
+
+  // 空闲超过 10 分钟压成断点：一条链可能横跨好几天，
+  // 不压缩的话真正干活的那十分钟会缩成一个像素。
+  function agAxis(members) {
+    var segs = [];
+    members.forEach(function (a) {
+      (a.segments || []).forEach(function (s) { segs.push(s); });
+    });
+    segs.sort(function (x, y) { return x[0] - y[0]; });
+    var blocks = [];
+    segs.forEach(function (s) {
+      var last = blocks[blocks.length - 1];
+      if (last && s[0] <= last[1] + 600) { last[1] = Math.max(last[1], s[1]); }
+      else { blocks.push([s[0], Math.max(s[1], s[0])]); }
+    });
+    var x = 150, gaps = [];
+    blocks.forEach(function (b, i) {
+      if (i > 0 && b[0] - blocks[i - 1][1] > 600) {
+        x += 18;
+        gaps.push(i);
+      }
+      var d = Math.max(0, b[1] - b[0]);
+      b.x = x;
+      b.w = Math.max(14, Math.min(150, 16 + 120 * Math.sqrt(d / 3600)));
+      x += b.w;
+    });
+    // 比卡片宽就整体缩放，而不是横向滚动：这一屏要读的是「谁和谁重叠」，
+    // 滚动会把同一时刻的两行推出视野。缩放后最短也留 5px，至少能看见。
+    var cap = 700;
+    if (x - 150 > cap) {
+      var k = cap / (x - 150);
+      var cx = 150;
+      blocks.forEach(function (b, i) {
+        if (gaps.indexOf(i) >= 0) cx += 14;
+        b.x = cx;
+        b.w = Math.max(5, b.w * k);
+        cx += b.w;
+      });
+      x = cx;
+    }
+    var breaks = gaps.map(function (i) {
+      return { x: blocks[i].x - 7, from: blocks[i - 1][1], to: blocks[i][0] };
+    });
+    return { blocks: blocks, breaks: breaks, width: Math.max(x + 8, 420) };
+  }
+
+  function agX(ax, t) {
+    for (var i = 0; i < ax.blocks.length; i++) {
+      var b = ax.blocks[i];
+      if (t <= b[1]) {
+        var r = b[1] === b[0] ? 0 : (t - b[0]) / (b[1] - b[0]);
+        return b.x + Math.max(0, Math.min(1, r)) * b.w;
+      }
+    }
+    var last = ax.blocks[ax.blocks.length - 1];
+    return last.x + last.w;
+  }
+
+  // 快照的「正在跑」要相对生成时刻判断；用浏览时的时间会把所有条都判成空闲。
+  var agRef = 0;
+
+  function agTimeline(members) {
+    var ax = agAxis(members);
+    if (!ax.blocks.length) return '<p class="sec-note">这条链没有时间数据。</p>';
+    var H = 18 + members.length * 24 + 6;
+    var out = [];
+    out.push('<svg class="ag-svg" width="' + ax.width + '" height="' + H +
+      '" viewBox="0 0 ' + ax.width + ' ' + H + '" role="img" aria-label="会话活跃时间轴">');
+    ax.breaks.forEach(function (b) {
+      out.push('<line x1="' + b.x + '" y1="10" x2="' + b.x + '" y2="' + (H - 4) +
+        '" stroke="var(--border)" stroke-dasharray="2 3"/>');
+    });
+    var yOf = {};
+    members.forEach(function (a, i) { yOf[a.id] = 18 + i * 24; });
+    members.forEach(function (a) {
+      if (!a.parent || yOf[a.parent] == null) return;
+      var ps = members.filter(function (m) { return m.id === a.parent; })[0];
+      if (!ps || !(ps.segments || []).length || !(a.segments || []).length) return;
+      // 锚点要取「子会话开始那一刻父代理所在的那一段」，不是父代理的最后一段：
+      // 并行扇出时父代理还在跑，最后一段往往在子会话结束之后，连线会画反。
+      var cstart = a.segments[0][0], anchor = null;
+      ps.segments.forEach(function (s) {
+        if (cstart >= s[0] && cstart <= s[1]) anchor = s;
+      });
+      if (!anchor) {
+        ps.segments.forEach(function (s) {
+          if (s[1] <= cstart && (!anchor || s[1] > anchor[1])) anchor = s;
+        });
+      }
+      if (!anchor) anchor = ps.segments[0];
+      var cx = agX(ax, cstart);
+      var spawned = cstart >= anchor[0] && cstart <= anchor[1];
+      var stroke = 'fill="none" stroke="var(--control)" stroke-width="1" opacity=".45"';
+      if (spawned) {
+        // 父代理此刻在跑：从它的横条垂直落一条线，表示「这一刻派出去的」
+        out.push('<path d="M' + cx + ',' + (yOf[a.parent] + 11) + ' V' +
+          (yOf[a.id] - 1) + '" ' + stroke + '/>');
+        return;
+      }
+      var px = agX(ax, anchor[1]);
+      if (cx <= px + 4) return;
+      out.push('<path d="M' + px + ',' + (yOf[a.parent] + 9) + ' H' + (px + 6) +
+        ' V' + (yOf[a.id] + 9) + ' H' + (cx - 2) + '" ' + stroke + '/>');
+    });
+    members.forEach(function (a) {
+      var y = yOf[a.id];
+      var running = a.lastTs && agRef && agRef - a.lastTs < 45;
+      out.push('<text x="0" y="' + (y + 8) + '" class="ag-name">' + esc(agName(a)) + '</text>');
+      out.push('<text x="0" y="' + (y + 19) + '" class="ag-sub">' +
+        (a.runtime === 'DSH' ? 'DSH' : 'CC') + ' · ' + (a.steps || 0) + ' 步 · ' +
+        esc(a.short || '') + '</text>');
+      (a.segments || []).forEach(function (s) {
+        var x0 = agX(ax, s[0]), x1 = Math.max(x0 + 5, agX(ax, s[1]));
+        out.push('<rect x="' + x0 + '" y="' + (y + 2) + '" width="' + (x1 - x0) +
+          '" height="9" rx="2.5" fill="' + (running ? 'var(--signal)' : 'var(--faint)') +
+          '" opacity="' + (running ? '.9' : '.5') + '"><title>' +
+          esc(agClock(s[0]) + ' → ' + agClock(s[1]) + '（' + agDur(s[1] - s[0]) + '）') +
+          '</title></rect>');
+      });
+    });
+    out.push('</svg>');
+    return '<div class="ag-chart">' + out.join('') + '</div>';
+  }
+
+  function renderAgents() {
+    var box = $('view-agents');
+    if (!box) return;
+    var ac = MEM.agentChains || {};
+    var chains = ac.chains || [];
+    var agents = ac.agents || {};
+    if (!chains.length) {
+      box.innerHTML = '<div class="sec-label"><h2>多 agent 协作</h2></div>' +
+        '<p class="sec-note">还没有协作数据。在本机跑一次 ' +
+        '<code>python 08-AI记忆/tools/agent_chains.py write</code> 再生成门户。</p>';
+      return;
+    }
+
+    var multi = chains.filter(function (c) { return c.size > 1; });
+    var single = chains.filter(function (c) { return c.size <= 1; });
+    agRef = (ac.generatedAt || 0) / 1000;
+    var running = chains.filter(function (c) { return c.running; }).length;
+    var cross = multi.filter(function (c) { return (c.runtimes || []).length > 1; }).length;
+    var stamp = ac.generatedAt ? new Date(ac.generatedAt) : null;
+
+    var html = '<div class="sec-label"><h2>谁在指挥谁</h2>' +
+      '<span class="count">' + multi.length + ' 条并行/接力链</span></div>' +
+      '<p class="sec-note">从 DSH 与 Claude Code 的会话日志里读出来的真实时间。' +
+      '横条是活跃区间，中间的缺口是空闲（超过 10 分钟压缩）。' +
+      '跨工具的接力靠 <code>08-AI记忆/_agent/chains.jsonl</code> 登记，日志里没有共同主键，推断的不算数。' +
+      (stamp ? ' <b>数据截至 ' + agClock(stamp.getTime() / 1000) + '</b>（最后一条会话活动），之后的新会话要等下次生成。' : '') +
+      '</p>' +
+      '<div class="ag-stats">' +
+      '<div class="ag-stat"><b class="num">' + ac.total + '</b><span>个会话</span></div>' +
+      '<div class="ag-stat"><b class="num">' + running + '</b><span>快照时在跑</span></div>' +
+      '<div class="ag-stat"><b class="num">' + multi.length + '</b><span>多会话链</span></div>' +
+      '<div class="ag-stat"><b class="num">' + cross + '</b><span>跨工具链</span></div>' +
+      '</div>';
+
+    html += multi.slice(0, 12).map(function (c) {
+      var root = agents[c.id] || {};
+      var members = c.members.map(function (id) { return agents[id]; })
+        .filter(function (a) { return a; });
+      return '<section class="ag-card">' +
+        '<div class="ag-head"><h3>' + esc(root.title || c.id) + '</h3>' +
+        '<span class="ag-meta">' + c.size + ' 个会话 · ' + esc((c.runtimes || []).join(' + ')) +
+        ' · ' + agDur(c.lastTs - c.startTs) + ' · 最后活动 ' + agClock(c.lastTs) + '</span></div>' +
+        agTimeline(members) + '</section>';
+    }).join('');
+
+    if (single.length) {
+      html += '<details class="ag-single"><summary>另有 ' + single.length +
+        ' 个单会话（没有派出子代理，也没有登记接力）</summary>' +
+        '<div class="ag-single-list">' +
+        single.slice(0, 40).map(function (c) {
+          var a = agents[c.id] || {};
+          return '<span>' + esc(agClip(a.title || c.id, 18)) + ' · ' +
+            agClock(c.lastTs) + '</span>';
+        }).join('') + '</div></details>';
+    }
+
+    box.innerHTML = html;
   }
 
   function renderUsage() {

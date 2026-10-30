@@ -2611,3 +2611,44 @@ body.drawer-open { overflow: hidden; }
   .table-wrap td { display: block; padding: 0 var(--sp-4); border-bottom: 0; }
   .table-wrap td:empty { display: none; }
 }
+
+/* ---------- 协作：并发时间线 ---------- */
+/* 颜色只用来标「正在跑」，运行时就靠 DSH / CC 的文字标签区分。
+   时间条本身是中性色，因为这一屏要读的是「位置和重叠」，不是分类。 */
+.ag-stats {
+  display: flex;
+  gap: var(--sp-6);
+  margin: var(--sp-2) 0 var(--sp-4);
+  flex-wrap: wrap;
+}
+.ag-stat { display: flex; flex-direction: column; gap: var(--sp-1); }
+.ag-stat b { font-size: var(--fs-title); font-weight: 600; line-height: 1.15; }
+.ag-stat span { font-size: var(--fs-micro); color: var(--faint); }
+
+.ag-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+.ag-head { display: flex; gap: var(--sp-2); align-items: baseline; flex-wrap: wrap; }
+.ag-head h3 { margin: 0; font-size: var(--fs-body); font-weight: 600; }
+.ag-meta { color: var(--faint); font-size: var(--fs-micro); }
+
+/* 时间轴按卡片宽度缩放，不横向滚动：滚动会把同一时刻的两行拆出视野 */
+.ag-chart { overflow-x: auto; margin-top: var(--sp-2); }
+.ag-svg { display: block; }
+.ag-name { font-size: var(--fs-micro); fill: var(--text); }
+.ag-sub { font-size: var(--fs-micro); fill: var(--faint); }
+
+.ag-single { margin-top: var(--sp-4); }
+.ag-single summary { cursor: pointer; color: var(--muted); font-size: var(--fs-small); }
+.ag-single-list { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-top: var(--sp-2); }
+.ag-single-list span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
