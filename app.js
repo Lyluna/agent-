@@ -1982,12 +1982,10 @@
     return s.length > n ? s.slice(0, n - 1) + '…' : s;
   }
 
-  // Claude Code 的会话标题常常就是「Claude Code 3d7b6b65」，截断后只剩「Claude Code …」，
-  // 十个子代理看起来一模一样。这种情况改用短 id，至少能对上号。
+  // DSH 的标题就是任务原文，十个子代理都叫「你是阅读分析员…」，当名字没法用。
+  // 名字统一用「工具 + 短 id」，「做什么」交给下一行的任务摘要。
   function agName(a) {
-    var t = String(a.title || '');
-    if (/^Claude Code/.test(t)) return 'CC ' + (a.short || '');
-    return agClip(t || a.short || a.id, 13);
+    return (a.runtime === 'DSH' ? 'DSH ' : 'CC ') + (a.short || '');
   }
 
   // 空闲超过 10 分钟压成断点：一条链可能横跨好几天，
@@ -2053,7 +2051,7 @@
   function agTimeline(members) {
     var ax = agAxis(members);
     if (!ax.blocks.length) return '<p class="sec-note">这条链没有时间数据。</p>';
-    var H = 18 + members.length * 24 + 6;
+    var H = 18 + members.length * 30 + 6;
     var out = [];
     out.push('<svg class="ag-svg" width="' + ax.width + '" height="' + H +
       '" viewBox="0 0 ' + ax.width + ' ' + H + '" role="img" aria-label="会话活跃时间轴">');
@@ -2062,7 +2060,7 @@
         '" stroke="var(--border)" stroke-dasharray="2 3"/>');
     });
     var yOf = {};
-    members.forEach(function (a, i) { yOf[a.id] = 18 + i * 24; });
+    members.forEach(function (a, i) { yOf[a.id] = 18 + i * 30; });
     members.forEach(function (a) {
       if (!a.parent || yOf[a.parent] == null) return;
       var ps = members.filter(function (m) { return m.id === a.parent; })[0];
@@ -2097,9 +2095,9 @@
       var y = yOf[a.id];
       var running = a.lastTs && agRef && agRef - a.lastTs < 45;
       out.push('<text x="0" y="' + (y + 8) + '" class="ag-name">' + esc(agName(a)) + '</text>');
-      out.push('<text x="0" y="' + (y + 19) + '" class="ag-sub">' +
-        (a.runtime === 'DSH' ? 'DSH' : 'CC') + ' · ' + (a.steps || 0) + ' 步 · ' +
-        esc(a.short || '') + '</text>');
+      // 第二行放任务摘要：时间轴自己就能回答「派它去干什么」，不用先展开
+      out.push('<text x="0" y="' + (y + 21) + '" class="ag-sub">' +
+        esc(agClip(a.task || '（无任务原文）', 14)) + '</text>');
       (a.segments || []).forEach(function (s) {
         var x0 = agX(ax, s[0]), x1 = Math.max(x0 + 5, agX(ax, s[1]));
         out.push('<rect x="' + x0 + '" y="' + (y + 2) + '" width="' + (x1 - x0) +
