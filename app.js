@@ -1988,131 +1988,9 @@
     return (a.runtime === 'DSH' ? 'DSH ' : 'CC ') + (a.short || '');
   }
 
-  // 空闲超过 10 分钟压成断点：一条链可能横跨好几天，
-  // 不压缩的话真正干活的那十分钟会缩成一个像素。
-  function agAxis(members) {
-    var segs = [];
-    members.forEach(function (a) {
-      (a.segments || []).forEach(function (s) { segs.push(s); });
-    });
-    segs.sort(function (x, y) { return x[0] - y[0]; });
-    var blocks = [];
-    segs.forEach(function (s) {
-      var last = blocks[blocks.length - 1];
-      if (last && s[0] <= last[1] + 600) { last[1] = Math.max(last[1], s[1]); }
-      else { blocks.push([s[0], Math.max(s[1], s[0])]); }
-    });
-    var x = 150, gaps = [];
-    blocks.forEach(function (b, i) {
-      if (i > 0 && b[0] - blocks[i - 1][1] > 600) {
-        x += 18;
-        gaps.push(i);
-      }
-      var d = Math.max(0, b[1] - b[0]);
-      b.x = x;
-      b.w = Math.max(14, Math.min(150, 16 + 120 * Math.sqrt(d / 3600)));
-      x += b.w;
-    });
-    // 比卡片宽就整体缩放，而不是横向滚动：这一屏要读的是「谁和谁重叠」，
-    // 滚动会把同一时刻的两行推出视野。缩放后最短也留 5px，至少能看见。
-    var cap = 700;
-    if (x - 150 > cap) {
-      var k = cap / (x - 150);
-      var cx = 150;
-      blocks.forEach(function (b, i) {
-        if (gaps.indexOf(i) >= 0) cx += 14;
-        b.x = cx;
-        b.w = Math.max(5, b.w * k);
-        cx += b.w;
-      });
-      x = cx;
-    }
-    var breaks = gaps.map(function (i) {
-      return { x: blocks[i].x - 7, from: blocks[i - 1][1], to: blocks[i][0] };
-    });
-    return { blocks: blocks, breaks: breaks, width: Math.max(x + 8, 420) };
-  }
-
-  function agX(ax, t) {
-    for (var i = 0; i < ax.blocks.length; i++) {
-      var b = ax.blocks[i];
-      if (t <= b[1]) {
-        var r = b[1] === b[0] ? 0 : (t - b[0]) / (b[1] - b[0]);
-        return b.x + Math.max(0, Math.min(1, r)) * b.w;
-      }
-    }
-    var last = ax.blocks[ax.blocks.length - 1];
-    return last.x + last.w;
-  }
-
   // 快照的「正在跑」要相对生成时刻判断；用浏览时的时间会把所有条都判成空闲。
   var agRef = 0;
 
-  function agTimeline(members) {
-    var ax = agAxis(members);
-    if (!ax.blocks.length) return '<p class="sec-note">这条链没有时间数据。</p>';
-    var H = 18 + members.length * 30 + 6;
-    var out = [];
-    out.push('<svg class="ag-svg" width="' + ax.width + '" height="' + H +
-      '" viewBox="0 0 ' + ax.width + ' ' + H + '" role="img" aria-label="会话活跃时间轴">');
-    ax.breaks.forEach(function (b) {
-      out.push('<line x1="' + b.x + '" y1="10" x2="' + b.x + '" y2="' + (H - 4) +
-        '" stroke="var(--border)" stroke-dasharray="2 3"/>');
-    });
-    var yOf = {};
-    members.forEach(function (a, i) { yOf[a.id] = 18 + i * 30; });
-    members.forEach(function (a) {
-      if (!a.parent || yOf[a.parent] == null) return;
-      var ps = members.filter(function (m) { return m.id === a.parent; })[0];
-      if (!ps || !(ps.segments || []).length || !(a.segments || []).length) return;
-      // 锚点要取「子会话开始那一刻父代理所在的那一段」，不是父代理的最后一段：
-      // 并行扇出时父代理还在跑，最后一段往往在子会话结束之后，连线会画反。
-      var cstart = a.segments[0][0], anchor = null;
-      ps.segments.forEach(function (s) {
-        if (cstart >= s[0] && cstart <= s[1]) anchor = s;
-      });
-      if (!anchor) {
-        ps.segments.forEach(function (s) {
-          if (s[1] <= cstart && (!anchor || s[1] > anchor[1])) anchor = s;
-        });
-      }
-      if (!anchor) anchor = ps.segments[0];
-      var cx = agX(ax, cstart);
-      var spawned = cstart >= anchor[0] && cstart <= anchor[1];
-      var stroke = 'fill="none" stroke="var(--control)" stroke-width="1" opacity=".45"';
-      if (spawned) {
-        // 父代理此刻在跑：从它的横条垂直落一条线，表示「这一刻派出去的」
-        out.push('<path d="M' + cx + ',' + (yOf[a.parent] + 11) + ' V' +
-          (yOf[a.id] - 1) + '" ' + stroke + '/>');
-        return;
-      }
-      var px = agX(ax, anchor[1]);
-      if (cx <= px + 4) return;
-      out.push('<path d="M' + px + ',' + (yOf[a.parent] + 9) + ' H' + (px + 6) +
-        ' V' + (yOf[a.id] + 9) + ' H' + (cx - 2) + '" ' + stroke + '/>');
-    });
-    members.forEach(function (a) {
-      var y = yOf[a.id];
-      var running = a.lastTs && agRef && agRef - a.lastTs < 45;
-      out.push('<text x="0" y="' + (y + 8) + '" class="ag-name">' + esc(agName(a)) + '</text>');
-      // 第二行放任务摘要：时间轴自己就能回答「派它去干什么」，不用先展开
-      out.push('<text x="0" y="' + (y + 21) + '" class="ag-sub">' +
-        esc(agClip(a.task || '（无任务原文）', 14)) + '</text>');
-      (a.segments || []).forEach(function (s) {
-        var x0 = agX(ax, s[0]), x1 = Math.max(x0 + 5, agX(ax, s[1]));
-        out.push('<rect x="' + x0 + '" y="' + (y + 2) + '" width="' + (x1 - x0) +
-          '" height="9" rx="2.5" fill="' + (running ? 'var(--signal)' : 'var(--faint)') +
-          '" opacity="' + (running ? '.9' : '.5') + '"><title>' +
-          esc(agClock(s[0]) + ' → ' + agClock(s[1]) + '（' + agDur(s[1] - s[0]) + '）') +
-          '</title></rect>');
-      });
-    });
-    out.push('</svg>');
-    return '<div class="ag-chart">' + out.join('') + '</div>';
-  }
-
-  // 时间轴只回答「谁和谁同时在跑」，回答不了「父代理让它干什么、它做到哪」。
-  // 每行补上任务原文（快照截 240 字）与进度，点开看全文和最后一段输出。
   function agState(a) {
     if (a.ended) return '已结束';
     var age = a.lastTs && agRef ? agRef - a.lastTs : 0;
@@ -2120,42 +1998,68 @@
     return '空闲 ' + agDur(age);
   }
 
-  function agTaskRow(a, parentTitle) {
-    var depth = Math.min(a.depth || 0, 3);
+  // 活跃时长：把 segments 的区间加起来，不拿「首尾相减」当执行时间，
+  // 否则跨几天的会话会把睡觉的时间也算进去。
+  function agActive(a) {
+    var s = 0;
+    (a.segments || []).forEach(function (seg) { s += Math.max(0, seg[1] - seg[0]); });
+    return s;
+  }
+
+  // 一个 agent 的四个阶段：派发 → 执行 → 反馈 → 检查。
+  // 时间都来自会话日志；「检查」是父代理在子代理回报之后又有动作，属于推断。
+  function agPhases(a) {
+    var isRoot = !a.parent;
     var state = agState(a);
-    var ask = a.task || '';
-    var chips = [];
-    if (a.steps) chips.push(a.steps + ' 步');
-    if (a.lastTool) chips.push(a.lastTool);
-    chips.push(state);
+    var exec = (a.steps || 0) === 0 ? 'wait' : (state === '快照时在跑' ? 'live' : 'done');
+    return [
+      { k: '派发', t: a.createdAt || 0, s: a.createdAt ? 'done' : 'wait' },
+      { k: '执行', t: a.lastTs || 0, s: exec,
+        d: exec === 'wait' ? '' : (exec === 'live' ? '进行中 ' : '') + agDur(agActive(a)) },
+      { k: '反馈', t: isRoot ? (a.lastTs || 0) : (a.reportTs || 0),
+        s: (isRoot ? !!a.lastText : !!a.reportTs) ? 'done' : 'wait' },
+      { k: '检查', t: isRoot ? 0 : (a.checkedTs || 0),
+        s: (!isRoot && a.checkedTs) ? 'done' : 'wait' }
+    ];
+  }
 
-    var body = [];
-    if (a.parent && a.parent !== a.id) {
-      body.push('<div class="ag-k">谁派的</div><p class="ag-v">' +
-        esc(parentTitle || a.parent) + '</p>');
+  function agBot(a, isRoot) {
+    var state = agState(a);
+    var task = a.task || '';
+    var ps = agPhases(a);
+    var flow = ps.map(function (p, i) {
+      var next = ps[i + 1];
+      // 连线颜色看「下一站到没到」，不是看当前站：反馈完了不等于检查过了
+      var cls = p.s + (next && p.s === 'done' && next.s === 'done' ? ' link' : '');
+      return '<li class="' + cls + '"><span class="ag-ph">' + p.k + '</span>' +
+        '<span class="ag-pt">' + (p.d || (p.t ? agClock(p.t) : '—')) + '</span></li>';
+    }).join('');
+    var more = '';
+    if (task || a.lastText) {
+      more = '<details class="ag-more"><summary>任务原文与输出</summary>' +
+        (task ? '<div class="ag-k">派了什么活</div><p class="ag-v">' + esc(task) + '</p>' : '') +
+        (a.lastText ? '<div class="ag-k">最后一段输出</div><p class="ag-v">' + esc(a.lastText) + '</p>' : '') +
+        '</details>';
     }
-    body.push('<div class="ag-k">派了什么活</div><p class="ag-v">' +
-      (ask ? esc(ask) : '<span class="ag-none">日志里没有可辨识的任务原文</span>') + '</p>');
-    var prog = [];
-    if (a.turn) prog.push('第 ' + a.turn + ' 轮');
-    prog.push((a.steps || 0) + ' 步');
-    if (a.lastTool) prog.push('最后用 ' + a.lastTool);
-    if ((a.jobs || []).length) prog.push((a.jobs || []).length + ' 个后台任务');
-    if ((a.approvals || []).length) prog.push('在等审批：' + a.approvals[0]);
-    prog.push(agClock(a.createdAt) + ' → ' + agClock(a.lastTs) +
-      '（' + agDur((a.lastTs || 0) - (a.createdAt || 0)) + '）');
-    body.push('<div class="ag-k">做到哪</div><p class="ag-v">' +
-      prog.map(esc).join(' · ') + '</p>');
-    if (a.lastText) {
-      body.push('<div class="ag-k">最后一段输出</div><p class="ag-v">' + esc(a.lastText) + '</p>');
-    }
+    return '<article class="ag-bot' + (isRoot ? ' root' : '') + '">' +
+      '<div class="ag-bot-head"><span class="ag-dot' + (state === '快照时在跑' ? ' on' : '') + '"></span>' +
+      '<b>' + esc(agName(a)) + '</b>' +
+      '<span class="ag-role">' + (isRoot ? '父代理' : '子代理') + '</span>' +
+      '<span class="ag-bot-meta">' + (a.steps || 0) + ' 步' +
+        (a.lastTool ? ' · ' + esc(a.lastTool) : '') + ' · ' + state + '</span></div>' +
+      '<p class="ag-bot-task">' + (task ? esc(agClip(task, 100)) :
+        '<span class="ag-none">日志里没有可辨识的任务原文</span>') + '</p>' +
+      '<ol class="ag-flow" aria-label="调度状态">' + flow + '</ol>' + more + '</article>';
+  }
 
-    return '<details class="ag-task d' + depth + '"><summary>' +
-      '<span class="ag-tw"><span class="ag-dot' +
-        (state === '快照时在跑' ? ' on' : '') + '"></span>' + esc(agName(a)) + '</span>' +
-      '<span class="ag-ta">' + (ask ? esc(agClip(ask, 64)) : '（无任务原文）') + '</span>' +
-      '<span class="ag-tc">' + chips.map(esc).join(' · ') + '</span></summary>' +
-      '<div class="ag-task-body">' + body.join('') + '</div></details>';
+  // 父代理在上，子代理缩进挂在下面——连线方向就是「谁派了谁」。
+  function agTree(members) {
+    var root = members.filter(function (a) { return !a.parent; })[0] || members[0];
+    var kids = members.filter(function (a) { return a !== root; });
+    return '<div class="ag-tree">' + agBot(root, true) +
+      (kids.length ? '<div class="ag-branch">' + kids.map(function (a) {
+        return agBot(a, false);
+      }).join('') + '</div>' : '') + '</div>';
   }
 
   function renderAgents() {
@@ -2175,22 +2079,23 @@
     var single = chains.filter(function (c) { return c.size <= 1; });
     agRef = (ac.generatedAt || 0) / 1000;
     var running = chains.filter(function (c) { return c.running; }).length;
-    var cross = multi.filter(function (c) { return (c.runtimes || []).length > 1; }).length;
+    var maxPeak = chains.reduce(function (m, c) { return Math.max(m, c.peak || 0); }, 0);
     var stamp = ac.generatedAt ? new Date(ac.generatedAt) : null;
 
-    var html = '<div class="sec-label"><h2>谁在指挥谁</h2>' +
-      '<span class="count">' + multi.length + ' 条并行/接力链</span></div>' +
+    var html = '<div class="sec-label"><h2>调度台</h2>' +
+      '<span class="count">' + multi.length + ' 条协作链</span></div>' +
       '<p class="sec-note">从 DSH 与 Claude Code 的会话日志里读出来的真实时间。' +
-      '横条是活跃区间，中间的缺口是空闲（超过 10 分钟压缩）；' +
-      '下面每条会话点开，能看到<strong>父代理派下来的任务原文、已经走到第几步、最后一段输出</strong>。' +
-      '跨工具的接力靠 <code>08-AI记忆/_agent/chains.jsonl</code> 登记，日志里没有共同主键，推断的不算数。' +
+      '每张卡片是一个 agent：<strong>上面是父代理，缩进在下面的是它派出去的</strong>；' +
+      '四个点依次是<strong>派发 → 执行 → 反馈 → 检查</strong>，时间取自会话记录。' +
+      '「检查」表示父代理在子代理回报之后又有动作，是推断不是铁证。' +
+      '跨工具的接力靠 <code>08-AI记忆/_agent/chains.jsonl</code> 登记。' +
       (stamp ? ' <b>数据截至 ' + agClock(stamp.getTime() / 1000) + '</b>（最后一条会话活动），之后的新会话要等下次生成。' : '') +
       '</p>' +
       '<div class="ag-stats">' +
       '<div class="ag-stat"><b class="num">' + ac.total + '</b><span>个会话</span></div>' +
       '<div class="ag-stat"><b class="num">' + running + '</b><span>快照时在跑</span></div>' +
       '<div class="ag-stat"><b class="num">' + multi.length + '</b><span>多会话链</span></div>' +
-      '<div class="ag-stat"><b class="num">' + cross + '</b><span>跨工具链</span></div>' +
+      '<div class="ag-stat"><b class="num">' + maxPeak + '</b><span>最大同时执行</span></div>' +
       '</div>';
 
     html += multi.slice(0, 12).map(function (c) {
@@ -2200,11 +2105,9 @@
       return '<section class="ag-card">' +
         '<div class="ag-head"><h3>' + esc(root.title || c.id) + '</h3>' +
         '<span class="ag-meta">' + c.size + ' 个会话 · ' + esc((c.runtimes || []).join(' + ')) +
-        ' · ' + agDur(c.lastTs - c.startTs) + ' · 最后活动 ' + agClock(c.lastTs) + '</span></div>' +
-        agTimeline(members) +
-        '<div class="ag-tasks">' + members.map(function (a) {
-          return agTaskRow(a, root.title || c.id);
-        }).join('') + '</div></section>';
+        ' · 并发峰值 ' + (c.peak || 1) + ' · ' + agDur(c.lastTs - c.startTs) +
+        ' · 最后活动 ' + agClock(c.lastTs) + '</span></div>' +
+        agTree(members) + '</section>';
     }).join('');
 
     if (single.length) {
