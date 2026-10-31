@@ -1649,7 +1649,7 @@
     var kn = MEM.knowledge || [];
     var html = '<div class="sec-label"><h2>可复用结论</h2>' +
       '<span class="count">' + (kn.length || ds.count || 0) + ' 条</span></div>';
-    html += '<p class="sec-note">一条知识一个文件，正文必须答 What / Why / Who / When / Where / How。点开看细节，不再只有一句摘要。</p>';
+    html += '<p class="sec-note">一条知识一个文件，正文要答四件事：是什么、有什么用、可以借鉴什么、为什么是这样。点开看细节。</p>';
     if (kn.length) {
       html += '<div class="kn-grid">';
       kn.forEach(function (k) {
@@ -1657,9 +1657,9 @@
         if (k.category) chips += '<span class="kn-chip">' + esc(k.category) + '</span>';
         if (k.domain) chips += '<span class="kn-chip kn-chip-dim">' + esc(k.domain) + '</span>';
         var more = '';
-        if (k.why) more += '<details class="kn-more"><summary>为什么成立</summary><p>' + esc(k.why) + '</p></details>';
-        if (k.where) more += '<details class="kn-more"><summary>落在哪</summary><p>' + esc(k.where) + '</p></details>';
-        if (k.how) more += '<details class="kn-more"><summary>怎么做</summary><p>' + esc(k.how) + '</p></details>';
+        if (k.use) more += '<details class="kn-more"><summary>有什么用</summary><p>' + esc(k.use) + '</p></details>';
+        if (k.learn) more += '<details class="kn-more"><summary>可以借鉴什么</summary><p>' + esc(k.learn) + '</p></details>';
+        if (k.why) more += '<details class="kn-more"><summary>为什么是这样</summary><p>' + esc(k.why) + '</p></details>';
         html += '<article class="kn-card">' +
           '<div class="kn-head">' + chips + '<time>' + esc(k.created || '') + '</time></div>' +
           '<h3>' + esc(k.title) + '</h3>' +
