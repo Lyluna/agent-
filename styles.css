@@ -2914,3 +2914,407 @@ body.drawer-open { overflow: hidden; }
   .overview-stream { padding: var(--sp-4); }
   .overview-stream { margin-top: var(--sp-4); }
 }
+
+
+/* ============================================================
+   2026-10-31 V4：把 B 的排版 + C 的卡片层次铺到全部视图
+   仍然只加一层样式；数据、路由、交互都不动。
+   卡片次序：深色主卡 → 白卡 → 米色强调卡。
+   ============================================================ */
+
+/* ── 排版：页级小标题与关键数字用衬线，正文保持无衬线 ── */
+.sec-label h2,
+.section-heading h2 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.sec-label.sec-sub h3,
+.sec-label h3 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-section);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.work-stats b,
+.usage-n,
+.disk-tier-n,
+.ag-stat b,
+.profile-cell .val,
+.pulse-panel .metric b {
+  font-family: var(--font-serif);
+}
+.fact-date,
+.kn-head time {
+  font-family: var(--mono);
+}
+
+/* ── 工具条：一张轻卡，不再是一条下划线 ── */
+.toolbar {
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.toolbar .search-btn {
+  background: var(--raised);
+  border-color: transparent;
+}
+.toolbar .search-btn:hover {
+  background: var(--surface);
+  border-color: var(--control);
+}
+/* 关系和协作页没有全局搜索，工具条只剩一个空壳 */
+body[data-view="graph"] .toolbar,
+body[data-view="agents"] .toolbar { display: none; }
+
+/* ── 项目：四个指标各自成卡，第一张深色、第二张米色 ── */
+.work-stats {
+  gap: var(--sp-4);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  margin-bottom: var(--sp-6);
+}
+.work-stats .stat {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  padding: var(--sp-5);
+  box-shadow: var(--card-shadow);
+  justify-content: flex-end;
+}
+.work-stats .stat:first-child {
+  background: var(--card-primary);
+  border-color: rgba(255, 255, 255, .08);
+}
+.work-stats .stat:first-child b { color: var(--card-primary-ink); }
+.work-stats .stat:first-child span { color: var(--card-primary-muted); }
+.work-stats .stat:nth-child(2) {
+  background: var(--card-warm);
+  border-color: var(--card-warm-border);
+}
+
+.board { gap: var(--sp-4); }
+.board-col {
+  border-radius: var(--radius-bento);
+  padding: var(--sp-4);
+  box-shadow: var(--card-shadow);
+}
+.board-col .intents {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+.board-col .intent:last-child { border-bottom: 0; }
+
+.proj {
+  border-radius: var(--radius-bento);
+  padding: var(--sp-5);
+  box-shadow: var(--card-shadow);
+}
+/* 有卡点的项目用米色纸，扫一眼就知道哪几张要停一下 */
+.proj:has(.proj-line.warn) {
+  background: var(--card-warm);
+  border-color: var(--card-warm-border);
+}
+.claim {
+  border-radius: var(--radius-bento);
+  padding: var(--sp-4);
+  box-shadow: var(--card-shadow);
+}
+.runs {
+  border-radius: var(--radius-bento);
+  box-shadow: var(--card-shadow);
+}
+.run { padding: var(--sp-3) var(--sp-4); }
+
+/* ── 记忆：整条时间线装进一张白卡 ── */
+.facts {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  padding: 0 var(--sp-5);
+  box-shadow: var(--card-shadow);
+}
+.fact {
+  grid-template-columns: 104px minmax(0, 1fr) auto;
+  padding: var(--sp-4) 0;
+}
+.facts .fact:last-child { border-bottom: 0; }
+/* 概览里已经在外层卡片内，不能再套一层 */
+.overview-stream .facts {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* ── 认知：一格一卡，第一张米色做锚点 ── */
+.beliefs {
+  gap: var(--sp-4);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.belief {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  padding: var(--sp-5);
+  box-shadow: var(--card-shadow);
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.belief:hover {
+  border-color: var(--control);
+  transform: translateY(-1px);
+}
+.beliefs .belief:first-child {
+  background: var(--card-warm);
+  border-color: var(--card-warm-border);
+}
+
+/* ── 待办：每组一张卡 ── */
+.intents {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  padding: 0 var(--sp-5);
+  box-shadow: var(--card-shadow);
+}
+.intent { padding: var(--sp-4) 0; }
+.intents .intent:last-child { border-bottom: 0; }
+.overview-focus .intents {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* ── 知识：卡片与表格同一套圆角 ── */
+.kn-grid {
+  gap: var(--sp-4);
+  align-items: start;
+}
+.kn-card {
+  border-radius: var(--radius-bento);
+  padding: var(--sp-5);
+  box-shadow: var(--card-shadow);
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.kn-card:hover {
+  border-color: var(--control);
+  transform: translateY(-1px);
+}
+.kn-grid .kn-card:first-child {
+  background: var(--card-warm);
+  border-color: var(--card-warm-border);
+}
+.table-wrap {
+  border-radius: var(--radius-bento);
+  box-shadow: var(--card-shadow);
+}
+
+/* ── 要求：搜索条与每天的记录各成一张卡 ── */
+.req-bar {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.req-bar input { background: var(--raised); }
+.req-day {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-2) var(--sp-5) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.req-day-head {
+  padding: var(--sp-3) 0 var(--sp-2);
+  margin: 0 0 var(--sp-1);
+}
+.req-row { padding: var(--sp-3) 0; }
+/* 行末说明原来靠负 margin 贴住列表，现在列表是卡片，改回正常间距 */
+.req-tip { margin-top: var(--sp-4); }
+
+/* ── 使用：第一张指标深色，条形图与技能各一张卡 ── */
+.usage-stats { gap: var(--sp-4); }
+.usage-stat {
+  border-radius: var(--radius-bento);
+  padding: var(--sp-5);
+  box-shadow: var(--card-shadow);
+}
+.usage-stat:first-child {
+  background: var(--card-primary);
+  border-color: rgba(255, 255, 255, .08);
+}
+.usage-stat:first-child .usage-n,
+.usage-stat:first-child .usage-k { color: var(--card-primary-ink); }
+.usage-stat:first-child .usage-h { color: var(--card-primary-muted); }
+.usage-bars {
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+/* 原来 --series-1 只在关系图容器里定义，这里取不到值，条形整条都是底色 */
+.usage-track { background: var(--raised); }
+.usage-fill { background: var(--signal); }
+.usage-skills {
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.usage-sessions {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  box-shadow: var(--card-shadow);
+}
+.usage-row { padding: var(--sp-3) var(--sp-5); }
+.usage-bars + .sec-note,
+.usage-skills + .sec-note { margin-top: var(--sp-3); }
+
+/* ── 磁盘：卷、分档、摘要都按卡片排 ── */
+.disk-vols { gap: var(--sp-4); }
+.disk-vol {
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.disk-tiers { gap: var(--sp-4); }
+.disk-tier {
+  border-radius: var(--radius-bento);
+  padding: var(--sp-5);
+  box-shadow: var(--card-shadow);
+}
+.disk-summary {
+  background: var(--card-warm);
+  border: 1px solid var(--card-warm-border);
+  border-radius: var(--radius-bento);
+  padding: var(--sp-4);
+}
+.disk-empty {
+  background: var(--surface);
+  border-radius: var(--radius-bento);
+}
+
+/* ── 协作：指标第一张深色，每条链一张卡 ── */
+.ag-stats { gap: var(--sp-4); }
+.ag-stat {
+  flex: 1 1 0;
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.ag-stat:first-child {
+  background: var(--card-primary);
+  border-color: rgba(255, 255, 255, .08);
+}
+.ag-stat:first-child b { color: var(--card-primary-ink); }
+.ag-stat:first-child span { color: var(--card-primary-muted); }
+.ag-card {
+  border-radius: var(--radius-bento);
+  padding: var(--sp-4);
+  box-shadow: var(--card-shadow);
+}
+
+/* ── 关系：画布与说明拆成两张卡，说明用米色纸 ── */
+.graph-explorer {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  padding: var(--sp-4) var(--sp-5);
+  gap: var(--sp-5);
+  box-shadow: var(--card-shadow);
+}
+.graph-detail {
+  align-self: start;
+  border: 1px solid var(--card-warm-border);
+  border-radius: var(--radius-bento);
+  background: var(--card-warm);
+  padding: var(--sp-5);
+  margin: var(--sp-4) 0;
+}
+/* 节点文字的描边光晕原来取页面底色，进卡后要跟着卡片底色走 */
+.graph-explorer .graph-node text { stroke: var(--surface); }
+.graph-explorer .graph-node-ring { fill: var(--surface); }
+.graph-list { padding: var(--sp-3) 0; }
+
+/* ── 浮层：项目抽屉与命令面板沿用同一张纸 ── */
+.palette-box { border-radius: var(--radius-bento); }
+.drawer-panel h2 { font-family: var(--font-serif); font-weight: 600; }
+.w5 { border-radius: var(--radius-bento); }
+.profile { border-radius: var(--radius-bento); }
+
+/* ── 锁屏：同一张纸 ── */
+.lock-panel {
+  max-width: 380px;
+  padding: var(--sp-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.lock-panel h1 { font-family: var(--font-serif); }
+
+/* ── 手机端：卡片留白收一档，网格不挤 ── */
+@media (max-width: 760px) {
+  .toolbar {
+    padding: var(--sp-3);
+    margin-bottom: var(--sp-4);
+  }
+  /* 桌面版的 1.8fr / 1fr 会盖住更早的窄屏规则，这里重新压回单列 */
+  .overview-grid { grid-template-columns: minmax(0, 1fr); }
+  /* 事实行在手机上三段并排必然挤：日期、正文、来源改成上下排 */
+  .fact {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-2);
+  }
+  .fact-date { padding-top: 0; }
+  .fact-side { padding-top: 0; flex-wrap: wrap; }
+  .work-stats { gap: var(--sp-3); }
+  .work-stats .stat { padding: var(--sp-4); }
+  .facts { padding: 0 var(--sp-4); }
+  .beliefs { gap: var(--sp-3); }
+  .belief { padding: var(--sp-4); }
+  .intents { padding: 0 var(--sp-4); }
+  .proj { padding: var(--sp-4); }
+  .req-bar { padding: var(--sp-3); }
+  .req-day { padding: var(--sp-2) var(--sp-4) var(--sp-3); }
+  .usage-stat,
+  .usage-bars,
+  .usage-skills { padding: var(--sp-4); }
+  .usage-row { padding: var(--sp-3) var(--sp-4); }
+  .kn-card { padding: var(--sp-4); }
+  .disk-vol,
+  .disk-tier { padding: var(--sp-4); }
+  .ag-stat { padding: var(--sp-4); }
+  /* 四个指标在 390px 里一排会挤成竖排字，改成两列 */
+  .ag-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .graph-explorer { padding: var(--sp-3); }
+  .graph-detail {
+    margin: var(--sp-3) 0 0;
+    padding: var(--sp-4);
+  }
+  .lock-panel { padding: var(--sp-5); }
+}
