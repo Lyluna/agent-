@@ -27,7 +27,8 @@
   // 事实 / 认知 / 待办都在回答「我记得什么」，使用 / 磁盘都在回答「这套系统自己怎么样」。
   // 「要求」不并进「知识」——它是用户提过什么，和总结出来的知识不是一回事（用户 2026-10-28 定）。
   var VIEWS = [
-    { id: 'overview',  label: '概览', icon: 'grid',  panels: ['overview', 'work'] },
+    { id: 'overview',  label: '概览', icon: 'grid',  panels: ['overview'] },
+  { id: 'work',      label: '项目', icon: 'board', panels: ['work'] },
     { id: 'memory',    label: '记忆', icon: 'clock', panels: ['facts', 'beliefs', 'intents'] },
     { id: 'knowledge', label: '知识', icon: 'drop',  panels: ['knowledge'] },
     { id: 'requests',  label: '要求', icon: 'check', panels: ['requests'] },
@@ -36,7 +37,7 @@
   ];
 
   var PANEL_LABEL = {
-    overview: '概览', work: '工作台',
+    overview: '概览', work: '项目',
     facts: '事实', beliefs: '认知', intents: '待办',
     knowledge: '知识', requests: '要求', graph: '关系',
     usage: '使用', disk: '磁盘', agents: '协作'
@@ -168,6 +169,7 @@
     var pending = MEM.intents.filter(isPending).length;
     var counts = {
       overview: (MEM.projects || []).filter(function (p) { return p.blocked && p.blocked !== '无'; }).length,
+      work: (MEM.projects || []).length,
       memory: pending,
       knowledge: (MEM.sections.distilled ? MEM.sections.distilled.count : 0) +
                  (MEM.sections.skills ? MEM.sections.skills.count : 0) +
