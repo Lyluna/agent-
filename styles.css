@@ -51,6 +51,19 @@
   --font: "Segoe UI Variable", -apple-system, BlinkMacSystemFont, "Segoe UI",
           "PingFang SC", "Microsoft YaHei UI", sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --font-serif: "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC",
+                "SimSun", Georgia, serif;
+
+  /* C 的卡片层次：主卡 / 暖卡 / 阴影 */
+  --radius-bento: 18px;
+  --card-primary: #18231c;
+  --card-primary-ink: #eef4ef;
+  --card-primary-muted: #9fb0a4;
+  --card-primary-faint: #7f9185;
+  --card-primary-signal: #8fd6ad;
+  --card-warm: #f7f2e7;
+  --card-warm-border: #e7ddcb;
+  --card-shadow: 0 10px 28px -20px rgba(24, 33, 27, .32);
 
   /* 字号 6 档（hero 是概览首屏那句话，按视口缩放） */
   --fs-display: 28px;
@@ -102,6 +115,15 @@
   --warn-soft: #2b2418;
 
   --danger: #f08a7e;
+
+  --card-primary: #1a2620;
+  --card-primary-ink: #eef4ef;
+  --card-primary-muted: #9fb0a4;
+  --card-primary-faint: #7f9185;
+  --card-primary-signal: #8fd6ad;
+  --card-warm: #221d15;
+  --card-warm-border: #3a3122;
+  --card-shadow: none;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -2785,3 +2807,110 @@ body.drawer-open { overflow: hidden; }
 .kn-more[open] summary::before { content: "− "; }
 .kn-more p { margin: 8px 0 0; font-size: var(--fs-small); line-height: 1.6; color: var(--muted); white-space: pre-wrap; }
 @media (max-width: 640px) { .kn-grid { grid-template-columns: 1fr; } }
+
+
+/* ============================================================
+   2026-10-31 V3：B 的排版 + C 的卡片层次
+   只改外观，不动数据、交互、路由；深浅色沿用 data-theme。
+   ============================================================ */
+
+/* B：页头与首屏用衬线标题，正文仍是无衬线 */
+.page-head h1 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.welcome h2 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* 首屏右边 = C 的主卡 */
+.pulse-panel {
+  background: var(--card-primary);
+  color: var(--card-primary-ink);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: var(--radius-bento);
+  padding: var(--sp-5);
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+.pulse-panel .pulse-top { color: var(--card-primary-muted); }
+.pulse-panel .pulse-date { color: var(--card-primary-faint); }
+.pulse-panel .status-dot {
+  background: var(--card-primary-signal);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--card-primary-signal) 18%, transparent);
+}
+.pulse-panel .metric { border-left-color: rgba(255, 255, 255, .14); }
+.pulse-panel .metric b { color: var(--card-primary-ink); }
+.pulse-panel .m-label { color: var(--card-primary-muted); }
+.pulse-panel .m-sub { color: var(--card-primary-faint); }
+.pulse-panel .pulse-foot {
+  color: var(--card-primary-muted);
+  border-top-color: rgba(255, 255, 255, .14);
+}
+.pulse-panel .pulse-foot span { color: var(--card-primary-signal); }
+
+/* 首屏左文右卡：卡片和文字同高，不再是一条左线 */
+.welcome {
+  grid-template-columns: minmax(0, 1.2fr) 420px;
+  gap: var(--sp-6);
+  align-items: stretch;
+}
+
+/* C：待办白卡、最新留档暖卡、思考轨迹白卡 */
+.overview-grid {
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr);
+  gap: var(--sp-4);
+  padding: var(--sp-4) 0 var(--sp-5);
+  align-items: start;
+}
+.overview-focus,
+.overview-latest,
+.overview-stream {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  padding: var(--sp-5);
+  box-shadow: var(--card-shadow);
+}
+.overview-latest {
+  background: var(--card-warm);
+  border-color: var(--card-warm-border);
+}
+.overview-stream { margin-top: var(--sp-4); }
+
+/* 卡片内部不再重复画外框线 */
+.overview-focus .intents { border-top: 0; }
+.overview-focus .intent { padding: var(--sp-3) 0; }
+.overview-focus .intent:last-child { border-bottom: 0; padding-bottom: 0; }
+.overview-latest .latest-conversation { border-top: 0; border-bottom: 0; }
+.overview-stream .facts { border-top: 0; }
+.overview-stream .fact { padding: var(--sp-3) 0; }
+.overview-stream .fact:last-child { border-bottom: 0; padding-bottom: 0; }
+
+/* 其他视图的卡片沿用同一圆角，列表仍保持轻 */
+.belief, .kn-card, .proj, .board-col, .work-stats {
+  border-radius: var(--radius-bento);
+}
+
+@media (max-width: 760px) {
+  .welcome {
+    grid-template-columns: 1fr;
+    gap: var(--sp-5);
+    padding: var(--sp-5) 0;
+  }
+  .pulse-panel { padding: var(--sp-4); }
+  .overview-grid {
+    gap: var(--sp-4);
+    padding: var(--sp-4) 0;
+  }
+  .overview-focus,
+  .overview-latest,
+  .overview-stream { padding: var(--sp-4); }
+  .overview-stream { margin-top: var(--sp-4); }
+}
