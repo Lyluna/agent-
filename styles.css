@@ -2770,18 +2770,18 @@ body.drawer-open { overflow: hidden; }
 
 
 /* 蒸馏知识卡片（2026-10-31：正文 5W1H 进卡片，不再只有索引表一行） */
-.kn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-top: 14px; }
-.kn-card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 16px 18px 14px; }
-.kn-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-.kn-chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--raised); color: var(--muted); }
+.kn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; }
+.kn-card { border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); padding: 16px 16px 12px; }
+.kn-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.kn-chip { font-size: var(--fs-micro); padding: 1px 8px; border-radius: 999px; background: var(--raised); color: var(--muted); }
 .kn-chip-dim { background: transparent; border: 1px solid var(--border); color: var(--faint); }
-.kn-head time { margin-left: auto; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
-.kn-card h3 { font-size: 15px; line-height: 1.5; margin: 0 0 8px; font-weight: 600; }
-.kn-what { font-size: 13.5px; line-height: 1.75; color: var(--text); margin: 0 0 6px; }
-.kn-more { margin-top: 6px; border-top: 1px dashed var(--rule); padding-top: 6px; }
-.kn-more summary { cursor: pointer; font-size: 12px; color: var(--control); list-style: none; }
+.kn-head time { margin-left: auto; font-size: var(--fs-micro); color: var(--faint); font-variant-numeric: tabular-nums; }
+.kn-card h3 { font-size: var(--fs-body); line-height: 1.5; margin: 0 0 8px; font-weight: 600; }
+.kn-what { font-size: var(--fs-body); line-height: 1.6; color: var(--text); margin: 0 0 8px; }
+.kn-more { margin-top: 8px; border-top: 1px dashed var(--rule); padding-top: 8px; }
+.kn-more summary { cursor: pointer; font-size: var(--fs-small); color: var(--control); list-style: none; }
 .kn-more summary::-webkit-details-marker { display: none; }
 .kn-more summary::before { content: "＋ "; }
 .kn-more[open] summary::before { content: "− "; }
-.kn-more p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.7; color: var(--muted); white-space: pre-wrap; }
+.kn-more p { margin: 8px 0 0; font-size: var(--fs-small); line-height: 1.6; color: var(--muted); white-space: pre-wrap; }
 @media (max-width: 640px) { .kn-grid { grid-template-columns: 1fr; } }

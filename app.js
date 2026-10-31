@@ -564,18 +564,22 @@
     var relFiles = {};
     acts.forEach(function (f) { relFiles[f.file] = true; });
     var kwFacts = (d.relatedFacts || []).filter(function (f) { return !relFiles[f.file]; });
+    var mapped = kwFacts.filter(function (f) { return f.kind === '显式'; });
+    var guessed = kwFacts.filter(function (f) { return f.kind !== '显式'; });
     var runs = acts.map(function (f) {
       return { file: f.file, date: f.date, tool: f.tool, title: f.title, why: '显式链接' };
     }).concat(kwFacts.map(function (f) {
-      return { file: f.file, date: f.date, tool: f.tool, title: f.title, why: '关键词「' + f.via + '」' };
+      return { file: f.file, date: f.date, tool: f.tool, title: f.title,
+        why: f.kind === '显式' ? '显式归组' : '关键词「' + f.via + '」' };
     })).sort(function (a, b) {
       return String(b.date || '').localeCompare(String(a.date || ''));
     });
 
     if (runs.length) {
       html += '<h3>相关对话 ' + runs.length +
-        ' <em class="muted">（' + acts.length + ' 条显式链接 · ' + kwFacts.length + ' 条关键词匹配）</em></h3>' +
-        '<div class="drawer-runs">' + runs.slice(0, 8).map(function (f) {
+        ' <em class="muted">（' + acts.length + ' 条显式链接 · ' + mapped.length +
+        ' 条显式归组 · ' + guessed.length + ' 条关键词匹配）</em></h3>' +
+        '<div class="drawer-runs">' + runs.map(function (f) {
           return '<button class="run" data-fact="' + esc(f.file) + '">' +
             '<span class="run-date">' + esc(f.date) + '</span>' +
             '<span class="run-tool">' + esc(f.tool) + '</span>' +
@@ -2531,8 +2535,8 @@
         $('palette').classList.contains('open') ? closePalette() : openPalette();
       }
       if (e.key === 'Escape' && $('palette').classList.contains('open')) closePalette();
-      // 数字键 1-6 跳入口（不在输入框里时）。入口从 10 个收到 6 个，键位跟着收
-      if (!mod && /^[1-6]$/.test(e.key) &&
+      // 数字键 1-7 跳入口（不在输入框里时）。入口从 10 个收到 7 个，键位跟着收
+      if (!mod && /^[1-7]$/.test(e.key) &&
           !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
         setView(VIEWS[parseInt(e.key, 10) - 1].id);
       }
