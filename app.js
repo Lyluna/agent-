@@ -2089,6 +2089,12 @@
     });
   }
 
+  // 线上站只能把人送到本机磁盘页：本地服务要求同源 POST，
+  // 从 https://lyluna.github.io 直接调 /api/disk/review 会被按设计拒绝。
+  function openLocalDisk() {
+    window.open('http://127.0.0.1:8771/?shot=disk', '_blank', 'noopener');
+  }
+
   function diskOpenReview(btn) {
     btn.disabled = true;
     diskPost('/api/disk/review').then(function (res) {
@@ -2369,11 +2375,21 @@
     var box = $('view-disk');
     if (!box) return;
 
-    // 线上静态站（GitHub Pages）没有本地服务，也就读不到本机磁盘
+    // 线上静态站（GitHub Pages）没有本地服务，也就读不到本机磁盘。
+    // 但「去清理」这个动作还是要有入口：按钮把人送到本机门户的磁盘页，
+    // 真正打开 purrge 审查页的仍是那边的 API——跨源 POST 会被本地服务按设计拒绝，
+    // 这里不去绕它，只做一次跳转。
     if (!isLocalServer()) {
       box.innerHTML = '<div class="sec-label"><h2>磁盘</h2></div>' +
         '<p class="sec-note">磁盘板块只在<strong>本地</strong>可用——它要读这台机器的剩余空间和清理工具的运行记录。' +
-        '线上版读不到，就不显示数字，免得看的是别人机器的旧快照。</p>';
+        '线上版读不到，就不显示数字，免得看的是别人机器的旧快照。</p>' +
+        '<div class="disk-actions">' +
+        '<button class="primary-btn" id="diskPurrge">在本机打开 purrge</button>' +
+        '<span class="disk-hint">跳到本机门户的磁盘页（127.0.0.1:8771），' +
+        '那里能一键打开 purrge 审查页。打不开就先双击 <code>08-AI记忆/tools/start_portal_serve.bat</code>。</span>' +
+        '</div>';
+      var go = $('diskPurrge');
+      if (go) go.addEventListener('click', openLocalDisk);
       return;
     }
 
@@ -2453,7 +2469,7 @@
     // 3. 两个按钮，仅本地
     html += '<div class="disk-actions">' +
       '<button class="primary-btn" id="diskScan">立即扫描</button>' +
-      '<button class="ghost-btn" id="diskReview"' + (run ? '' : ' disabled') + '>打开审查页</button>' +
+      '<button class="ghost-btn" id="diskReview"' + (run ? '' : ' disabled') + '>打开 purrge 审查页</button>' +
       '<span class="disk-hint">审查页由 purrge 自己打开，勾选后才清理；门户这边没有任何删除按钮。</span>' +
       '</div>';
 
