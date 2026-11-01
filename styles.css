@@ -3318,3 +3318,200 @@ body[data-view="agents"] .toolbar { display: none; }
   }
   .lock-panel { padding: var(--sp-5); }
 }
+
+/* ============================================================
+   五、首页用量（V5 · 2026-11-01）
+   数据来自 token-lens 的本机账本（tools/token_stats.py 出快照），
+   视觉沿用 V4 纸感 Bento：深色主卡放总量，暖卡放缓存命中，
+   白卡放金额与输入输出。不放项目路径——账本里有，公开门户不该有。
+   ============================================================ */
+.overview-tokens { margin-bottom: var(--sp-6); }
+
+.token-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.token-hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: var(--radius-bento);
+  background: var(--card-primary);
+  color: var(--card-primary-ink);
+}
+
+.token-k {
+  font-size: var(--fs-small);
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.token-hero .token-k { color: var(--card-primary-muted); }
+
+.token-big {
+  font-family: var(--font-serif);
+  font-size: var(--fs-display);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.token-sub {
+  font-size: var(--fs-small);
+  color: var(--card-primary-muted);
+  line-height: 1.5;
+}
+
+.token-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+
+.token-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+.token-kpi.warm {
+  background: var(--card-warm);
+  border-color: var(--card-warm-border);
+}
+
+.token-v {
+  font-family: var(--font-serif);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.token-note {
+  font-size: var(--fs-micro);
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.token-mix {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+
+.token-trend {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+.token-mix-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--sp-4);
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+.token-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-1);
+  height: 96px;
+}
+
+.token-bar {
+  flex: 1 1 0;
+  min-width: 4px;
+  height: var(--h, 0%);
+  border-radius: var(--radius-chip) var(--radius-chip) 0 0;
+  background: var(--signal-soft);
+  transition: background .2s ease;
+}
+
+.token-bar:last-child,
+.token-bar:hover { background: var(--signal); }
+
+.token-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-micro);
+  font-family: var(--mono);
+  color: var(--faint);
+}
+
+.token-src {
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+.token-model {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-2) 0;
+}
+
+.token-model-name {
+  font-size: var(--fs-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-model-num {
+  font-size: var(--fs-micro);
+  font-family: var(--mono);
+  color: var(--muted);
+}
+
+.token-model-bar {
+  grid-column: 1 / -1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--raised);
+  overflow: hidden;
+}
+
+.token-model-bar i {
+  display: block;
+  width: var(--w, 0%);
+  height: 100%;
+  border-radius: 999px;
+  background: var(--signal);
+}
+
+.token-empty {
+  padding: var(--sp-4) 0;
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .token-board,
+  .token-mix { grid-template-columns: minmax(0, 1fr); }
+  .token-kpis { grid-template-columns: minmax(0, 1fr); }
+  .token-hero,
+  .token-kpi,
+  .token-trend { padding: var(--sp-4); }
+  .token-bars { height: 56px; }
+}

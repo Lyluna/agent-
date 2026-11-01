@@ -79,6 +79,31 @@
 
   function plural(n, unit) { return n + ' ' + unit; }
 
+  // 中文口径的数字缩写：token 动辄上亿，写全 9 位就没人读得出量级
+  function fmtTokens(n) {
+    n = Number(n) || 0;
+    if (n >= 1e8) return (n / 1e8).toFixed(2) + ' 亿';
+    if (n >= 1e4) return Math.round(n / 1e4).toLocaleString('en-US') + ' 万';
+    return String(Math.round(n));
+  }
+
+  function fmtPct(x) {
+    return typeof x === 'number' ? (x * 100).toFixed(1) + '%' : '—';
+  }
+
+  // 一对数共用一个单位：输入 2,305 万 / 输出 647 万 → 「2,305 / 647 万」。
+  // 两个数如果各自跨量级，就退回各写各的，免得「1.2 亿 / 3,400 万」这种歧义。
+  function fmtPair(a, b) {
+    var hi = Math.max(Number(a) || 0, Number(b) || 0);
+    var unit = hi >= 1e8 ? '亿' : hi >= 1e4 ? '万' : '';
+    var lo = Math.min(Number(a) || 0, Number(b) || 0);
+    var ok = !unit || (lo >= 1e4 && (unit !== '亿' || lo >= 1e8));
+    if (!ok) return fmtTokens(a) + ' / ' + fmtTokens(b);
+    var scale = unit === '亿' ? 1e8 : unit === '万' ? 1e4 : 1;
+    return Math.round(a / scale).toLocaleString('en-US') + ' / ' +
+      Math.round(b / scale).toLocaleString('en-US') + (unit ? ' ' + unit : '');
+  }
+
   // 非阻塞提示：右下角浮出一条，几秒后自己消失。
   // 不用 alert()——它会打断操作，也不该在每次写完都弹窗。
   function toast(msg, isError) {
@@ -354,6 +379,76 @@
     );
   }
 
+  // ---------- 概览 · 用量 ----------
+  // 数据来自 token-lens 的本机账本（tools/token_stats.py 算好快照）。
+  // 只展示账本能直接加出来的数：消耗量、缓存命中、金额、按日、按模型。
+  // 不在这里换算「折合多少轮对话」——账本里没有这个概念，硬除会编出一个假指标。
+  function tokenSection(tk) {
+    var t = tk.totals || {};
+    var last30 = tk.last30 || t;
+    var today = tk.today || {};
+    var range = tk.range || {};
+    var cost = tk.cost || {};
+    var days = tk.daily || [];
+    var models = (tk.models || []).slice(0, 3);
+    var span = range.span_days || days.length;
+    var perDay = span ? Math.round(last30.tokens / span) : 0;
+    var max = days.reduce(function (m, d) { return Math.max(m, d.tokens || 0); }, 0) || 1;
+    var topModel = models.length ? (models[0].tokens || 1) : 1;
+
+    var bars = days.map(function (d) {
+      var h = Math.max(3, Math.round((d.tokens || 0) / max * 100));
+      return '<span class="token-bar" style="--h:' + h + '%" title="' +
+        esc(d.date) + ' · ' + fmtTokens(d.tokens) + '"></span>';
+    }).join('');
+
+    var modelRows = models.map(function (m) {
+      var w = Math.max(4, Math.round((m.tokens || 0) / topModel * 100));
+      return '<div class="token-model"><span class="token-model-name">' + esc(m.name) + '</span>' +
+        '<span class="token-model-bar"><i style="--w:' + w + '%"></i></span>' +
+        '<span class="token-model-num">' + fmtTokens(m.tokens) + '</span></div>';
+    }).join('');
+
+    var srcLine = (tk.sources || []).slice(0, 3).map(function (s) {
+      return esc(s.label || s.name) + ' ' + fmtTokens(s.tokens);
+    }).join(' · ');
+
+    return '<section class="overview-tokens" aria-label="token 用量">' +
+      '<div class="section-heading"><span class="section-number">01</span><h2>用量</h2>' +
+      '<span class="sec-note">' + esc((range.from || '').slice(5)) + ' 起 ' + span +
+      ' 天 · 本机 token-lens 账本</span></div>' +
+      '<div class="token-board">' +
+        '<div class="token-hero">' +
+          '<span class="token-k">近 30 天消耗</span>' +
+          '<b class="token-big">' + fmtTokens(last30.tokens) + '</b>' +
+          '<span class="token-sub">日均 ' + fmtTokens(perDay) + ' · 今天 ' + fmtTokens(today.tokens) +
+          ' · ' + (last30.sessions || 0) + ' 个会话</span>' +
+        '</div>' +
+        '<div class="token-kpis">' +
+          '<div class="token-kpi warm"><span class="token-k">缓存命中率</span>' +
+            '<b class="token-v">' + fmtPct(tk.cache_hit_ratio) + '</b>' +
+            '<span class="token-note">输入里走缓存的比例</span></div>' +
+          '<div class="token-kpi"><span class="token-k">估算花费</span>' +
+            '<b class="token-v">$' + (cost.usd || 0).toFixed(2) + '</b>' +
+            '<span class="token-note">仅 ' + fmtPct(cost.priced_ratio) + ' 记录有公开价</span></div>' +
+          '<div class="token-kpi"><span class="token-k">输入 / 输出</span>' +
+            '<b class="token-v">' + fmtPair(t.input, t.output) + '</b>' +
+            '<span class="token-note">另有 ' + fmtTokens(t.cache_read) + ' 缓存读取</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="token-mix">' +
+        '<div class="token-trend">' +
+          '<div class="token-mix-head"><span>按日消耗</span><span>' + span + ' 天</span></div>' +
+          '<div class="token-bars">' + bars + '</div>' +
+          '<div class="token-axis"><span>' + esc(((days[0] || {}).date || '').slice(5)) + '</span><span>' +
+            esc(((days[days.length - 1] || {}).date || '').slice(5)) + '</span></div>' +
+          '<div class="token-src">' + srcLine + '</div>' +
+        '</div>' +
+        '<div class="token-trend"><div class="token-mix-head"><span>常用模型</span><span>token</span></div>' +
+          (modelRows || '<div class="token-empty">还没有模型记录</div>') + '</div>' +
+      '</div></section>';
+  }
+
   // ---------- 概览 ----------
   function renderOverview() {
     var p = MEM.profile || {};
@@ -377,14 +472,18 @@
         '<div class="pulse-foot">' + (live ? live + ' 个对话仍在继续' : '当前没有进行中的对话') + '<span>' + (canWrite ? '本地可写 · 能开终端' : cloudReady() ? '云端写入已连接' : '只读浏览') + '</span></div>' +
       '</div></section>';
 
-    html += '<div class="overview-grid"><section class="overview-focus"><div class="section-heading"><span class="section-number">01</span><h2>接着处理</h2>' +
+    if (MEM.tokens && MEM.tokens.totals && MEM.tokens.totals.records) {
+      html += tokenSection(MEM.tokens);
+    }
+
+    html += '<div class="overview-grid"><section class="overview-focus"><div class="section-heading"><span class="section-number">02</span><h2>接着处理</h2>' +
       '<button class="text-btn" data-go="intents">全部待办</button></div>' +
       (high.length ? '<div class="intents">' + high.map(intentRow).join('') + '</div>' : '<div class="empty"><strong>高优先级已清空</strong>可以从最近沉淀的内容继续整理。</div>') + '</section>' +
-      '<aside class="overview-latest"><div class="section-heading"><span class="section-number">02</span><h2>最新留档</h2></div>' +
+      '<aside class="overview-latest"><div class="section-heading"><span class="section-number">03</span><h2>最新留档</h2></div>' +
       '<button class="latest-conversation" data-go="facts"><span>' + esc(latest.date || '等待第一次归档') + '</span><strong>' + esc(latest.title || '新的对话会出现在这里') + '</strong><span>打开完整记录 ↗</span></button>' +
       '<div class="latest-note">不只是存下对话，也留下以后用得上的判断。</div></aside></div>';
 
-    html += '<section class="overview-stream"><div class="section-heading"><span class="section-number">03</span><h2>最近的思考轨迹</h2>' +
+    html += '<section class="overview-stream"><div class="section-heading"><span class="section-number">04</span><h2>最近的思考轨迹</h2>' +
       '<button class="text-btn" data-go="facts">查看全部</button></div><div class="facts">' +
       MEM.facts.slice(0, 4).map(factRow).join('') + '</div></section>';
 
