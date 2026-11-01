@@ -394,6 +394,9 @@
     var span = range.span_days || days.length;
     var perDay = span ? Math.round(last30.tokens / span) : 0;
     var max = days.reduce(function (m, d) { return Math.max(m, d.tokens || 0); }, 0) || 1;
+    var peak = days.reduce(function (best, d) {
+      return (d.tokens || 0) > (best.tokens || 0) ? d : best;
+    }, {});
     var topModel = models.length ? (models[0].tokens || 1) : 1;
 
     var bars = days.map(function (d) {
@@ -416,13 +419,19 @@
     return '<section class="overview-tokens" aria-label="token 用量">' +
       '<div class="section-heading"><span class="section-number">01</span><h2>用量</h2>' +
       '<span class="sec-note">' + esc((range.from || '').slice(5)) + ' 起 ' + span +
-      ' 天 · 本机 token-lens 账本</span></div>' +
+      ' 天 · token-lens 账本 ' + esc((tk.generated_at || '').slice(11)) + ' 更新</span></div>' +
       '<div class="token-board">' +
         '<div class="token-hero">' +
-          '<span class="token-k">近 30 天消耗</span>' +
-          '<b class="token-big">' + fmtTokens(last30.tokens) + '</b>' +
-          '<span class="token-sub">日均 ' + fmtTokens(perDay) + ' · 今天 ' + fmtTokens(today.tokens) +
-          ' · ' + (last30.sessions || 0) + ' 个会话</span>' +
+          '<div class="token-hero-main">' +
+            '<span class="token-k">近 30 天消耗</span>' +
+            '<b class="token-big">' + fmtTokens(last30.tokens) + '</b>' +
+            '<span class="token-sub">日均 ' + fmtTokens(perDay) + ' · ' + (last30.sessions || 0) + ' 个会话</span>' +
+          '</div>' +
+          '<div class="token-hero-today">' +
+            '<span class="token-k">今天</span>' +
+            '<b class="token-today">' + fmtTokens(today.tokens) + '</b>' +
+            '<span class="token-sub">' + (today.records || 0) + ' 条记录</span>' +
+          '</div>' +
         '</div>' +
         '<div class="token-kpis">' +
           '<div class="token-kpi warm"><span class="token-k">缓存命中率</span>' +
@@ -439,9 +448,17 @@
       '<div class="token-mix">' +
         '<div class="token-trend">' +
           '<div class="token-mix-head"><span>按日消耗</span><span>' + span + ' 天</span></div>' +
-          '<div class="token-bars">' + bars + '</div>' +
-          '<div class="token-axis"><span>' + esc(((days[0] || {}).date || '').slice(5)) + '</span><span>' +
-            esc(((days[days.length - 1] || {}).date || '').slice(5)) + '</span></div>' +
+          '<div class="token-chart">' +
+            '<div class="token-y" aria-hidden="true"><span>' + fmtTokens(max) + '</span><span>' +
+              fmtTokens(max / 2) + '</span><span>0</span></div>' +
+            '<div class="token-plot">' +
+              '<div class="token-bars">' + bars + '</div>' +
+              '<div class="token-axis"><span>' + esc(((days[0] || {}).date || '').slice(5)) + '</span><span>' +
+                esc(((days[days.length - 1] || {}).date || '').slice(5)) + '</span></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="token-peak">峰值 ' + esc((peak.date || '').slice(5) || '—') + ' · ' +
+            fmtTokens(peak.tokens) + '</div>' +
           '<div class="token-src">' + srcLine + '</div>' +
         '</div>' +
         '<div class="token-trend"><div class="token-mix-head"><span>常用模型</span><span>token</span></div>' +
@@ -2649,6 +2666,59 @@
     return m ? m[1] : 'overview';
   }
 
+  // ---------- 自动同步 ----------
+  // 门户是静态站，数据变了只能靠重新部署。页面开着时不刷新就要等下次手开，
+  // 所以每 5 分钟问一次线上密文的指纹：变了才下载解密，没变一个字节都不取。
+  // 只在标签页可见、且没开着抽屉/搜索面板时做——不在人读到一半时把内容换掉。
+  var autoSync = { stamp: null, busy: false, timer: null };
+
+  function syncBlocked() {
+    if (document.visibilityState !== 'visible') return true;
+    if (autoSync.busy) return true;
+    var lockBox = $('lock');
+    if (lockBox && lockBox.style.display !== 'none') return true;
+    var drawer = $('projectDrawer');
+    if (drawer && !drawer.hidden) return true;
+    var palette = $('palette');
+    if (palette && palette.classList.contains('open')) return true;
+    return false;
+  }
+
+  async function syncCheck() {
+    if (syncBlocked()) return;
+    autoSync.busy = true;
+    try {
+      var meta = await PortalCrypto.portalMeta('encrypted.bin');
+      if (!meta || meta === autoSync.stamp) return;
+      var fresh = await PortalCrypto.refreshPortal('encrypted.bin');
+      autoSync.stamp = meta;
+      var y = window.scrollY;
+      var panel = state.panel;
+      adopt(fresh);
+      INDEX = buildIndex();
+      renderAll();
+      setView(panel);
+      window.scrollTo(0, y);
+      toast('已同步最新数据');
+    } catch (e) {
+      // 网络断了或密文正在替换：下一轮再看，不打断阅读
+      console.warn('自动同步跳过：', e && e.message);
+    } finally {
+      autoSync.busy = false;
+    }
+  }
+
+  function startAutoSync() {
+    PortalCrypto.portalMeta('encrypted.bin').then(function (meta) {
+      if (meta) autoSync.stamp = meta;
+    });
+    if (autoSync.timer) clearInterval(autoSync.timer);
+    autoSync.timer = setInterval(syncCheck, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') syncCheck();
+    });
+  }
+
   // ---------- 解锁 ----------
   async function unlock() {
     var input = $('passwordInput');
@@ -2674,6 +2744,7 @@
       renderAll();
       setView(initialView());
       detectWritable();
+      startAutoSync();
 
       input.value = '';
     } catch (e) {

@@ -3336,9 +3336,9 @@ body[data-view="agents"] .toolbar { display: none; }
 
 .token-hero {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: var(--sp-2);
+  flex-direction: row;
+  align-items: stretch;
+  gap: var(--sp-4);
   padding: var(--sp-5);
   border: 1px solid rgba(255, 255, 255, .08);
   border-radius: var(--radius-bento);
@@ -3352,7 +3352,32 @@ body[data-view="agents"] .toolbar { display: none; }
   line-height: 1.5;
 }
 
+.token-hero-main,
+.token-hero-today {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.token-hero-main { flex: 1 1 auto; min-width: 0; }
+
+/* 当天量挨着 30 天总量放，用一条细线隔开：一个是区间，一个是此刻 */
+.token-hero-today {
+  flex: 0 0 auto;
+  padding-left: var(--sp-4);
+  border-left: 1px solid rgba(255, 255, 255, .12);
+}
+
 .token-hero .token-k { color: var(--card-primary-muted); }
+
+.token-today {
+  font-family: var(--font-serif);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--card-primary-signal);
+}
 
 .token-big {
   font-family: var(--font-serif);
@@ -3428,6 +3453,29 @@ body[data-view="agents"] .toolbar { display: none; }
   color: var(--muted);
 }
 
+.token-chart {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+/* 刻度用等分三档（峰值 / 一半 / 0），够读数又不至于把图挤满 */
+.token-y {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 96px;
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  color: var(--faint);
+  text-align: right;
+}
+
+.token-plot {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .token-bars {
   display: flex;
   align-items: flex-end;
@@ -3454,6 +3502,12 @@ body[data-view="agents"] .toolbar { display: none; }
   font-size: var(--fs-micro);
   font-family: var(--mono);
   color: var(--faint);
+}
+
+.token-peak {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-micro);
+  color: var(--muted);
 }
 
 .token-src {
@@ -3509,6 +3563,14 @@ body[data-view="agents"] .toolbar { display: none; }
 @media (max-width: 760px) {
   .token-board,
   .token-mix { grid-template-columns: minmax(0, 1fr); }
+  .token-hero { flex-direction: column; }
+  .token-hero-today {
+    padding-left: 0;
+    padding-top: var(--sp-3);
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, .12);
+  }
+  .token-y { height: 56px; }
   .token-kpis { grid-template-columns: minmax(0, 1fr); }
   .token-hero,
   .token-kpi,

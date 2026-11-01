@@ -103,6 +103,39 @@
     return decryptBuffer(await fetchBin('facts/' + shard + '.bin'), _password);
   }
 
+  /**
+   * 线上密文的指纹（ETag / Last-Modified / 长度）。
+   * 页面开着时用它判断「要不要重新拉 1.4 MB」，没变就什么都不做。
+   * file:// 拿不到响应头，返回 null，调用方跳过自动同步。
+   *
+   * @param {string} [url]
+   * @returns {Promise<string|null>}
+   */
+  async function portalMeta(url) {
+    try {
+      var resp = await fetch(url || 'encrypted.bin', { method: 'HEAD', cache: 'no-cache' });
+      if (!resp.ok) return null;
+      var tag = resp.headers.get('etag');
+      var modified = resp.headers.get('last-modified');
+      var length = resp.headers.get('content-length');
+      return tag || modified || length || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * 用已经解锁的密码重新取一次索引。密码只在 unlock 成功时记住，
+   * 所以这里不会凭空出现一个新密码，也不会往任何地方写。
+   *
+   * @param {string} [url]
+   * @returns {Promise<object>}
+   */
+  async function refreshPortal(url) {
+    if (!_password) throw new Error('LOCKED');
+    return decryptBuffer(await fetchBin(url || 'encrypted.bin'), _password);
+  }
+
   function lock() {
     _password = null;
     _keyCache = {};
@@ -111,6 +144,8 @@
   global.PortalCrypto = {
     decryptPortal: decryptPortal,
     decryptChunk: decryptChunk,
+    portalMeta: portalMeta,
+    refreshPortal: refreshPortal,
     lock: lock
   };
 })(window);
