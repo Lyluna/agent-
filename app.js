@@ -106,19 +106,21 @@
 
   // 非阻塞提示：右下角浮出一条，几秒后自己消失。
   // 不用 alert()——它会打断操作，也不该在每次写完都弹窗。
+  var toastBox = null;   // 严格模式下必须先声明：裸用 box 会抛 ReferenceError，提示一条都出不来
+
   function toast(msg, isError) {
-    box.setAttribute('role', 'status');
-    box.setAttribute('aria-live', 'polite');
-    if (!box) {
-      box = document.createElement('div');
-      box.id = 'toastBox';
-      box.className = 'toast-box';
-      document.body.appendChild(box);
+    if (!toastBox) {
+      toastBox = document.createElement('div');
+      toastBox.id = 'toastBox';
+      toastBox.className = 'toast-box';
+      toastBox.setAttribute('role', 'status');
+      toastBox.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toastBox);
     }
     var item = document.createElement('div');
     item.className = 'toast' + (isError ? ' toast-error' : '');
     item.textContent = msg;
-    box.appendChild(item);
+    toastBox.appendChild(item);
     setTimeout(function () {
       item.classList.add('toast-out');
       setTimeout(function () { item.remove(); }, 300);
