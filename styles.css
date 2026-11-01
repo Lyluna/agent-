@@ -2411,6 +2411,7 @@ body.drawer-open { overflow: hidden; }
   border-top: 1px solid var(--rule);
 }
 .disk-hint { font-size: var(--fs-micro); color: var(--faint); line-height: 1.5; flex: 1 1 240px; }
+.disk-hint a { color: inherit; text-decoration: underline; }
 
 .primary-btn {
   padding: 8px 16px;
@@ -2422,6 +2423,7 @@ body.drawer-open { overflow: hidden; }
 }
 .primary-btn:hover { opacity: .88; }
 .primary-btn:disabled { opacity: .45; cursor: default; }
+a.primary-btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 @media (max-width: 640px) {
   .disk-tiers { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }

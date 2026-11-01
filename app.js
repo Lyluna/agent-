@@ -2091,9 +2091,9 @@
 
   // 线上站只能把人送到本机磁盘页：本地服务要求同源 POST，
   // 从 https://lyluna.github.io 直接调 /api/disk/review 会被按设计拒绝。
-  function openLocalDisk() {
-    window.open('http://127.0.0.1:8771/?shot=disk', '_blank', 'noopener');
-  }
+  // 用 <a target="_blank"> 而不是 window.open：弹窗拦截器会吞掉脚本开的窗口，
+  // 用户看到的就只是「点了没反应」。
+  var LOCAL_DISK_URL = 'http://127.0.0.1:8771/?shot=disk';
 
   function diskOpenReview(btn) {
     btn.disabled = true;
@@ -2384,12 +2384,12 @@
         '<p class="sec-note">磁盘板块只在<strong>本地</strong>可用——它要读这台机器的剩余空间和清理工具的运行记录。' +
         '线上版读不到，就不显示数字，免得看的是别人机器的旧快照。</p>' +
         '<div class="disk-actions">' +
-        '<button class="primary-btn" id="diskPurrge">在本机打开 purrge</button>' +
-        '<span class="disk-hint">跳到本机门户的磁盘页（127.0.0.1:8771），' +
-        '那里能一键打开 purrge 审查页。打不开就先双击 <code>08-AI记忆/tools/start_portal_serve.bat</code>。</span>' +
+        '<a class="primary-btn" id="diskPurrge" href="' + LOCAL_DISK_URL + '"' +
+        ' target="_blank" rel="noopener">在本机打开 purrge</a>' +
+        '<span class="disk-hint">跳到本机门户的磁盘页，那里能一键打开 purrge 审查页。' +
+        '打不开就直接开 <a href="' + LOCAL_DISK_URL + '" target="_blank" rel="noopener">127.0.0.1:8771</a>，' +
+        '或先双击 <code>08-AI记忆/tools/start_portal_serve.bat</code>。</span>' +
         '</div>';
-      var go = $('diskPurrge');
-      if (go) go.addEventListener('click', openLocalDisk);
       return;
     }
 
