@@ -3603,7 +3603,7 @@ body[data-view="agents"] .toolbar { display: none; }
 .api-spark-bar {
   width: 100%;
   max-width: 22px;
-  min-height: 2px;
+  min-height: 0;
   background: var(--signal);
   border-radius: 2px 2px 0 0;
   opacity: .85;

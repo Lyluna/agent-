@@ -2445,7 +2445,7 @@
       daily.forEach(function (d) { if (d.calls > maxDay) maxDay = d.calls; });
       html += '<div class="sec-label"><h3>近 14 天</h3></div><div class="api-spark">' +
         daily.map(function (d, i) {
-          var h = Math.max(2, Math.round(d.calls / maxDay * 56));
+          var h = d.calls ? Math.max(2, Math.round(d.calls / maxDay * 56)) : 0;
           var label = i % 2 === 0 ? d.date.slice(5) : '';
           return '<span class="api-spark-col" title="' + esc(d.date) + '：' + d.calls +
             ' 次 · ' + money(d.cost_cny) + '">' +
