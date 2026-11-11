@@ -3579,3 +3579,69 @@ body[data-view="agents"] .toolbar { display: none; }
   .token-trend { padding: var(--sp-4); }
   .token-bars { height: 56px; }
 }
+
+/* ===== 云端 API 面板（2026-11-11） ===== */
+.api-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 12px var(--sp-4);
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  margin: 0 0 14px;
+}
+.api-spark-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.api-spark-bar {
+  width: 100%;
+  max-width: 22px;
+  min-height: 2px;
+  background: var(--signal);
+  border-radius: 2px 2px 0 0;
+  opacity: .85;
+}
+.api-spark-day {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--ink-3, var(--muted, #777));
+  white-space: nowrap;
+}
+.api-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+.api-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  min-width: 620px;
+}
+.api-table th,
+.api-table td {
+  padding: 8px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+.api-table th {
+  font-weight: 500;
+  color: var(--ink-3, var(--muted, #777));
+  border-bottom: 1px solid var(--rule);
+}
+.api-table td { border-top: 1px solid var(--rule); }
+.api-table tbody tr:first-child td { border-top: 0; }
+.api-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.api-ok { color: var(--signal); }
+.api-err { color: var(--danger); }

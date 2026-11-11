@@ -33,14 +33,14 @@
     { id: 'knowledge', label: '知识', icon: 'drop',  panels: ['knowledge'] },
     { id: 'requests',  label: '要求', icon: 'check', panels: ['requests'] },
     { id: 'graph',     label: '关系', icon: 'graph', panels: ['graph'] },
-    { id: 'system',    label: '系统', icon: 'pulse', panels: ['usage', 'disk', 'agents'] }
+    { id: 'system',    label: '系统', icon: 'pulse', panels: ['usage', 'cloud', 'disk', 'agents'] }
   ];
 
   var PANEL_LABEL = {
     overview: '概览', work: '项目',
     facts: '事实', beliefs: '认知', intents: '待办',
     knowledge: '知识', requests: '要求', graph: '关系',
-    usage: '使用', disk: '磁盘', agents: '协作'
+    usage: '使用', cloud: '云端', disk: '磁盘', agents: '协作'
   };
 
   // 旧分区 id → 新入口。深链 #view=facts、命令面板、data-go 都靠这张表找回位置
@@ -329,6 +329,15 @@
           '<b class="num">' + uc.fails + '</b> 次失败。'
         : '还没有使用数据。';
       renderUsage();
+    } else if (state.panel === 'cloud') {
+      var cc = MEM.cloud || {};
+      var ct = cc.today || {};
+      finding = ct.calls
+        ? '今天调用 <b class="num">' + ct.calls + '</b> 次，' +
+          '<b class="num">' + usageNum(ct.total_tokens) + '</b> token，约 ' +
+          '<b class="num">¥' + (ct.cost_cny || 0).toFixed(4) + '</b>。'
+        : '今天还没有云端调用。';
+      renderCloud();
     } else if (state.panel === 'disk') {
       renderDisk();
     } else if (state.panel === 'agents') {
@@ -2367,6 +2376,122 @@
       '<p class="sec-note">完整版（含改过哪些文件、读得最多的文件、反复试错的会话）见 ' +
       '<code>08-AI记忆/使用索引.md</code>。这里只做浏览，不做判断——' +
       '「这次为什么绕」要人写。</p>';
+
+    box.innerHTML = html;
+  }
+
+  function renderCloud() {
+    var box = $('view-cloud');
+    if (!box) return;
+
+    var c = MEM.cloud || {};
+    var t = c.totals || {};
+    if (!t.calls) {
+      box.innerHTML = '<div class="sec-label"><h2>云端 API</h2></div>' +
+        '<p class="sec-note">还没有调用记录。执行器或飞书自然语言调用一次后，' +
+        '运行 <code>python -I 08-AI记忆/tools/cloud_usage_stats.py</code> 再生成门户。</p>';
+      return;
+    }
+
+    function money(v) {
+      v = Number(v || 0);
+      return v >= 1 ? '¥' + v.toFixed(2) : '¥' + v.toFixed(4);
+    }
+    function when(s) {
+      return String(s || '').replace('T', ' ').slice(5, 16);
+    }
+
+    var html = '<div class="sec-label"><h2>云端 API 调用与消耗</h2>' +
+      '<span class="count">' + usageNum(t.calls) + ' 次调用</span></div>' +
+      '<p class="sec-note">数据来自云端执行器与飞书自然语言回复；VPS 记录由 ' +
+      '<code>sync_vps_usage.py</code> 拉回。成本按 DeepSeek 公开价估算，' +
+      '本机 Claude/Codex 账本另计在下方。</p>';
+
+    html += '<div class="usage-stats">' +
+      '<div class="usage-stat"><span class="usage-n">' + usageNum(t.calls) + '</span>' +
+        '<span class="usage-k">总调用</span><span class="usage-h">成功 ' + usageNum(t.ok) +
+        ' / 错误 ' + usageNum(t.errors) + '</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + usageNum((c.today || {}).calls || 0) + '</span>' +
+        '<span class="usage-k">今天</span><span class="usage-h">近 7 天 ' +
+        usageNum((c.last7 || {}).calls || 0) + ' 次</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + usageNum(t.total_tokens) + '</span>' +
+        '<span class="usage-k">总 token</span><span class="usage-h">输入 ' +
+        usageNum(t.prompt_tokens) + ' / 输出 ' + usageNum(t.completion_tokens) + '</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + money(t.cost_cny) + '</span>' +
+        '<span class="usage-k">累计估算</span><span class="usage-h">近 30 天 ' +
+        money((c.last30 || {}).cost_cny || 0) + '</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + (t.avg_seconds || 0).toFixed(1) + 's</span>' +
+        '<span class="usage-k">平均耗时</span><span class="usage-h">总计 ' +
+        (t.seconds || 0).toFixed(0) + ' 秒</span></div>' +
+      '</div>';
+
+    var providers = c.by_provider || [];
+    if (providers.length) {
+      var maxCalls = providers[0].calls || 1;
+      html += '<div class="sec-label"><h3>按 provider</h3></div><div class="usage-bars">' +
+        providers.map(function (p) {
+          var pct = Math.round(p.calls / maxCalls * 100);
+          return '<div class="usage-bar-row">' +
+            '<span class="usage-bar-k"><code>' + esc(p.name) + '</code></span>' +
+            '<span class="usage-track"><span class="usage-fill" style="width:' + pct + '%"></span></span>' +
+            '<span class="usage-bar-v num">' + usageNum(p.calls) + ' 次 · ' +
+            usageNum(p.total_tokens) + ' tok · ' + money(p.cost_cny) + '</span></div>';
+        }).join('') + '</div>';
+    }
+
+    var daily = c.daily || [];
+    if (daily.length) {
+      var maxDay = 1;
+      daily.forEach(function (d) { if (d.calls > maxDay) maxDay = d.calls; });
+      html += '<div class="sec-label"><h3>近 14 天</h3></div><div class="api-spark">' +
+        daily.map(function (d, i) {
+          var h = Math.max(2, Math.round(d.calls / maxDay * 56));
+          var label = i % 2 === 0 ? d.date.slice(5) : '';
+          return '<span class="api-spark-col" title="' + esc(d.date) + '：' + d.calls +
+            ' 次 · ' + money(d.cost_cny) + '">' +
+            '<span class="api-spark-bar" style="height:' + h + 'px"></span>' +
+            '<span class="api-spark-day">' + label + '</span></span>';
+        }).join('') + '</div>';
+    }
+
+    var recent = c.recent || [];
+    if (recent.length) {
+      html += '<div class="sec-label"><h3>最近调用</h3>' +
+        '<span class="count">' + recent.length + ' 条</span></div>' +
+        '<div class="api-table-wrap"><table class="api-table"><thead><tr>' +
+        '<th>时间</th><th>来源</th><th>模型</th><th>token</th><th>成本</th><th>耗时</th><th>状态</th>' +
+        '</tr></thead><tbody>' +
+        recent.map(function (r) {
+          var src = r.source === 'feishu-chat' ? '飞书对话' :
+            (r.source === 'cloud-executor' ? '云端执行器' : r.source);
+          return '<tr>' +
+            '<td class="num">' + esc(when(r.at)) + '</td>' +
+            '<td>' + esc(src) + '</td>' +
+            '<td><code>' + esc(r.model || r.provider) + '</code></td>' +
+            '<td class="num">' + usageNum(r.total_tokens) + '</td>' +
+            '<td class="num">' + money(r.cost_cny) + '</td>' +
+            '<td class="num">' + Number(r.seconds || 0).toFixed(1) + 's</td>' +
+            '<td>' + (r.status === 'ok' ? '<span class="api-ok">ok</span>' :
+              '<span class="api-err">' + esc(r.status) + '</span>') + '</td>' +
+            '</tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+
+    var tl = c.token_lens || {};
+    if (tl.records) {
+      html += '<div class="sec-label"><h3>本机工具账本（token-lens）</h3></div>' +
+        '<p class="sec-note">这部分不是云端调用，是 Claude Code / Codex / DSH 在本机的用量，' +
+        '只做旁注，避免把两套口径加在一起。</p>' +
+        '<div class="usage-stats">' +
+        '<div class="usage-stat"><span class="usage-n">' + usageNum(tl.records) + '</span>' +
+          '<span class="usage-k">记录</span><span class="usage-h">' + usageNum(tl.sessions) + ' 个会话</span></div>' +
+        '<div class="usage-stat"><span class="usage-n">' + usageNum(tl.tokens) + '</span>' +
+          '<span class="usage-k">token</span><span class="usage-h">缓存命中 ' +
+          Math.round((tl.cache_hit_ratio || 0) * 100) + '%</span></div>' +
+        '<div class="usage-stat"><span class="usage-n">$' + Number(tl.cost_usd || 0).toFixed(2) + '</span>' +
+          '<span class="usage-k">估算花费</span><span class="usage-h">只算有公开价的部分</span></div>' +
+        '</div>';
+    }
 
     box.innerHTML = html;
   }
