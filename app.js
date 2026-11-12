@@ -383,11 +383,15 @@
 
     $('pageFinding').innerHTML = finding;
 
+    // 页头只放身份与时间：角色是一整句自述，塞进来会在右上角横穿标题行，
+    // 完整内容挂在 title 上，正文里（概览的资料区）本来也有。
     var meta = [];
-    if (p.name) meta.push(esc(p.name));
-    if (p.role) meta.push(esc(p.role));
-    if (MEM.updated) meta.push('更新于 ' + esc(MEM.updated));
-    $('pageMeta').innerHTML = meta.map(function (m) { return '<span>' + m + '</span>'; }).join('');
+    if (p.name) {
+      meta.push('<span class="meta-name"' + (p.role ? ' title="' + esc(p.role) + '"' : '') + '>' +
+        esc(p.name) + '</span>');
+    }
+    if (MEM.updated) meta.push('<span class="meta-updated">更新于 ' + esc(MEM.updated) + '</span>');
+    $('pageMeta').innerHTML = meta.join('');
   }
 
   // ---------- 工具筛选 ----------

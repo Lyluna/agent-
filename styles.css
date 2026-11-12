@@ -2607,8 +2607,8 @@ a.primary-btn { display: inline-flex; align-items: center; text-decoration: none
   /* 右上角那两个按钮压着页头，标题与说明整体让开 */
   .page-head { padding-right: var(--util-w); }
 
-  /* 名字和角色在手机上每屏都占一行，只留更新时间 */
-  .page-head .meta span:nth-child(-n+2) { display: none; }
+  /* 名字在手机上每屏都占一行，只留更新时间 */
+  .page-head .meta .meta-name { display: none; }
 
   /* 触摸目标：手指比鼠标指针粗，28/32px 的控件在手机上点不准。
      逐条列出来总会漏（写完这行又冒出 close-btn / req-del / motionBtn），
@@ -4124,5 +4124,58 @@ body {
     margin-top: var(--sp-6);
     padding: 0;
     flex-wrap: wrap;
+  }
+}
+
+/* ============================================================
+   2026-11-12 V5：页头（masthead）
+   左栏标题 + 一句话，右栏身份与更新时间。角色是一整句自述，
+   放进右栏会横穿标题行，现在只留在 .meta-name 的 title 上。
+   ============================================================ */
+.page-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title meta"
+    "finding meta";
+  column-gap: var(--sp-5);
+  row-gap: var(--sp-2);
+  align-items: start;
+  margin-bottom: var(--sp-5);
+}
+.page-head h1 {
+  grid-area: title;
+  margin: 0;
+  /* 章节小标题在 V4 已升到 22px；页名再停在 18px 就比章节还小，层级是倒的 */
+  font-size: var(--fs-display);
+  line-height: 1.15;
+}
+.page-head .finding { grid-area: finding; }
+.page-head .meta {
+  grid-area: meta;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-1);
+  margin: 0;
+  padding-top: var(--sp-1);
+  font-size: var(--fs-micro);
+  text-align: right;
+  white-space: nowrap;
+}
+.page-head .meta .meta-name { color: var(--muted); }
+.page-head .meta .meta-updated { font-family: var(--mono); color: var(--faint); }
+
+@media (max-width: 760px) {
+  .page-head {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "title" "finding" "meta";
+  }
+  .page-head .meta {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--sp-2);
+    padding-top: 0;
+    text-align: left;
+    white-space: normal;
   }
 }
