@@ -3742,7 +3742,7 @@ body[data-view="agents"] .toolbar { display: none; }
 body {
   background-color: var(--ground);
   background-image:
-    radial-gradient(1100px 620px at 16% -12%, var(--ambient), transparent 70%),
+    radial-gradient(1100px 620px at 16% -12%, var(--ambient), transparent 100%),
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: auto, var(--grid-step) var(--grid-step), var(--grid-step) var(--grid-step);
@@ -3787,7 +3787,7 @@ body {
 .gate-vignette {
   position: absolute;
   inset: 0;
-  background: radial-gradient(64% 68% at 30% 46%, var(--gate-glow), transparent 72%);
+  background: radial-gradient(64% 68% at 30% 46%, var(--gate-glow), transparent 100%);
 }
 
 .gate {
