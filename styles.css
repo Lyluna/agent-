@@ -4179,3 +4179,41 @@ body {
     white-space: normal;
   }
 }
+
+/* ============================================================
+   2026-11-12 V5.2：逐屏打磨
+   只处理「读起来卡住」的地方：分类墙、空单元格、长统计串、长说明。
+   ============================================================ */
+
+/* 认知：分类筛选默认收起，剩下的用虚线按钮展开 */
+.chip-more { color: var(--signal); border: 1px dashed var(--border); }
+.chip-more:hover { background: var(--signal-soft); color: var(--signal); border-color: var(--control); }
+
+/* 云端按 provider：右列是「次数 · token · 费用」，不是单个数字 */
+.usage-bar-row.is-metric { grid-template-columns: 120px minmax(0, 1fr) max-content; }
+.usage-bar-row.is-metric .usage-bar-v { white-space: nowrap; }
+@media (max-width: 760px) {
+  .usage-bar-row.is-metric { grid-template-columns: 92px minmax(0, 1fr); row-gap: var(--sp-1); }
+  .usage-bar-row.is-metric .usage-bar-v {
+    grid-column: 1 / -1;
+    text-align: left;
+    white-space: normal;
+  }
+}
+
+/* 门禁矩阵：容器底色会把最后一格的空位涂成一块色块，改成格子自己画线 */
+.health-checks { background: var(--surface); gap: 0; }
+.health-check { box-shadow: 0 0 0 1px var(--border); }
+
+/* 长说明默认折叠：首屏留结论，口径按需展开 */
+.sec-how { margin: 0 0 var(--sp-4); }
+.sec-how summary {
+  width: fit-content;
+  padding: var(--sp-1) 0;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  cursor: pointer;
+}
+.sec-how summary:hover { color: var(--signal); }
+.sec-how[open] summary { margin-bottom: var(--sp-2); }
+.sec-how .sec-note { margin-bottom: 0; }

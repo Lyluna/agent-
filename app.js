@@ -1287,9 +1287,9 @@
       '<span class="count">' + list.length + ' 条</span></div>';
     html += '<p class="sec-note">技术决策、踩坑经验、已确认的做法。分类写在 技术决策.md 每个标题下一行「分类：xxx」。</p>';
 
-    // 分类筛选：默认只露前 11 个，剩下的收进「更多」。
-    // 40 多个分类一次铺开会占掉五整行，把下面的结论推到首屏之外。
-    var CAT_LIMIT = 11;
+    // 分类筛选：桌面露前 11 个，手机只露 5 个（每个 44px 高，多了会把结论挤出首屏）。
+    // 剩下的收进「更多」，40 多个分类一次铺开会占掉五整行。
+    var CAT_LIMIT = (window.innerWidth || 1200) <= 760 ? 5 : 11;
     var shownCats = cats;
     var hiddenCats = 0;
     if (!state.catOpen && cats.length > CAT_LIMIT) {
@@ -1339,6 +1339,11 @@
       $('view-beliefs').querySelectorAll('.chip'),
       function (el) {
         el.addEventListener('click', function () {
+          if (el.dataset.catMore) {
+            state.catOpen = !state.catOpen;
+            renderBeliefs();
+            return;
+          }
           state.category = el.dataset.cat;
           renderBeliefs();
         });
@@ -2296,13 +2301,14 @@
 
     var html = '<div class="sec-label"><h2>调度台</h2>' +
       '<span class="count">' + multi.length + ' 条协作链</span></div>' +
-      '<p class="sec-note">从 DSH 与 Claude Code 的会话日志里读出来的真实时间。' +
-      '每张卡片是一个 agent：<strong>上面是父代理，缩进在下面的是它派出去的</strong>；' +
-      '四个点依次是<strong>派发 → 执行 → 反馈 → 检查</strong>，时间取自会话记录。' +
-      '「检查」表示父代理在子代理回报之后又有动作，是推断不是铁证。' +
-      '跨工具的接力靠 <code>08-AI记忆/_agent/chains.jsonl</code> 登记。' +
-      (stamp ? ' <b>数据截至 ' + agClock(stamp.getTime() / 1000) + '</b>（最后一条会话活动），之后的新会话要等下次生成。' : '') +
+      '<p class="sec-note">每张卡片是一个 agent：<strong>上面是父代理，缩进在下面的是它派出去的</strong>。' +
+      (stamp ? '<b>数据截至 ' + agClock(stamp.getTime() / 1000) + '</b>，新会话要等下次生成。' : '') +
       '</p>' +
+      '<details class="sec-how"><summary>怎么读这张图</summary>' +
+      '<p class="sec-note">四个点依次是<strong>派发 → 执行 → 反馈 → 检查</strong>，时间取自会话记录。' +
+      '「检查」表示父代理在子代理回报之后又有动作，是推断不是铁证。' +
+      '跨工具的接力靠 <code>08-AI记忆/_agent/chains.jsonl</code> 登记。</p>' +
+      '</details>' +
       '<div class="ag-stats">' +
       '<div class="ag-stat"><b class="num">' + ac.total + '</b><span>个会话</span></div>' +
       '<div class="ag-stat"><b class="num">' + running + '</b><span>快照时在跑</span></div>' +
@@ -2463,8 +2469,14 @@
         }).join('') + '</div>';
     }
     if ((v.never || []).length) {
-      html += '<div class="sec-label sec-sub"><h3>从未跑通</h3></div>' +
-        '<p class="sec-note">' + (v.never || []).map(esc).join('、') + '</p>';
+      html += '<div class="sec-label sec-sub"><h3>从未跑通</h3></div><div class="health-items">' +
+        v.never.map(function (label) {
+          return '<article class="health-item">' +
+            '<span class="health-kind">未跑通</span>' +
+            '<div class="health-body"><b>' + esc(label) + '</b>' +
+              '<span class="health-meta">还没有一次成功记录，先确认脚本或环境，再补一次跑通时间。</span>' +
+            '</div></article>';
+        }).join('') + '</div>';
     }
 
     var by = c.by_status || {};
@@ -2702,7 +2714,7 @@
       html += '<div class="sec-label"><h3>按 provider</h3></div><div class="usage-bars">' +
         providers.map(function (p) {
           var pct = Math.round(p.calls / maxCalls * 100);
-          return '<div class="usage-bar-row">' +
+          return '<div class="usage-bar-row is-metric">' +
             '<span class="usage-bar-k"><code>' + esc(p.name) + '</code></span>' +
             '<span class="usage-track"><span class="usage-fill" style="width:' + pct + '%"></span></span>' +
             '<span class="usage-bar-v num">' + usageNum(p.calls) + ' 次 · ' +
