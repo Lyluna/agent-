@@ -3649,9 +3649,9 @@ body[data-view="agents"] .toolbar { display: none; }
 /* ---------- Phase 5 健康五视图 ---------- */
 .health-items { display: grid; gap: 8px; margin: 0 0 16px; }
 .health-item {
-  display: grid; grid-template-columns: 72px minmax(0, 1fr) auto;
+  display: grid; grid-template-columns: 120px minmax(0, 1fr) auto;
   gap: 12px; align-items: start;
-  padding: 12px 14px;
+  padding: 12px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--surface);
@@ -3659,12 +3659,13 @@ body[data-view="agents"] .toolbar { display: none; }
 .health-kind {
   font-size: var(--fs-micro); color: var(--muted);
   background: var(--raised); border-radius: var(--radius-chip);
-  padding: 2px 6px; text-align: center; white-space: nowrap;
+  padding: 4px 8px; text-align: center;
+  overflow-wrap: anywhere;
 }
-.health-body { display: grid; gap: 3px; min-width: 0; }
+.health-body { display: grid; gap: 4px; min-width: 0; }
 .health-body b { font-size: var(--fs-body); font-weight: 600; overflow-wrap: anywhere; }
 .health-meta {
-  font-size: var(--fs-micro); color: var(--faint); line-height: 1.55;
+  font-size: var(--fs-micro); color: var(--faint); line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .health-src {
@@ -3685,12 +3686,12 @@ body[data-view="agents"] .toolbar { display: none; }
 }
 .health-check {
   display: flex; justify-content: space-between; gap: 12px;
-  padding: 9px 12px; background: var(--surface); font-size: var(--fs-small);
+  padding: 8px 12px; background: var(--surface); font-size: var(--fs-small);
 }
 .health-check.is-bad { background: var(--warn-soft); color: var(--warn); }
-.health-errors { display: grid; gap: 6px; margin: 0 0 16px; }
+.health-errors { display: grid; gap: 8px; margin: 0 0 16px; }
 .health-error {
-  padding: 8px 10px; border-left: 3px solid var(--danger);
+  padding: 8px 12px; border-left: 3px solid var(--danger);
   background: var(--raised); font-family: var(--mono);
   font-size: var(--fs-micro); overflow-wrap: anywhere;
 }
@@ -3706,4 +3707,9 @@ body[data-view="agents"] .toolbar { display: none; }
   #view-health .usage-stats,
   #view-evidence .usage-stats,
   #view-assets .usage-stats { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  /* 五个 tab 在 390px 下要能同屏看到，缩小间距而不是依赖横滑 */
+  .tabs { gap: 12px; }
+  .tab { font-size: var(--fs-small); }
 }
