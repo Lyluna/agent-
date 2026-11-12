@@ -3115,12 +3115,24 @@
     var input = $('passwordInput');
     var err = $('lockErr');
     var btn = $('unlockBtn');
+    var label = $('unlockLabel');
+    var lock = $('lock');
     var pw = input.value;
 
-    if (!pw) { err.textContent = '请输入密码'; input.focus(); return; }
+    input.removeAttribute('aria-invalid');
+    lock.classList.remove('is-error');
+
+    if (!pw) {
+      err.textContent = '请输入密码';
+      input.setAttribute('aria-invalid', 'true');
+      input.focus();
+      return;
+    }
 
     btn.disabled = true;
-    btn.textContent = '解密中…';
+    btn.setAttribute('aria-busy', 'true');
+    lock.classList.add('is-busy');
+    label.textContent = '正在解密…';
     err.textContent = '';
 
     try {
@@ -3129,7 +3141,14 @@
       adopt(data);
       INDEX = buildIndex();
 
-      $('lock').style.display = 'none';
+      // 先让门淡出，再把整块拿走；降级模式下立即切换
+      lock.classList.add('is-open');
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setTimeout(function () {
+        lock.style.display = 'none';
+        lock.classList.remove('is-open');
+      }, reduce ? 0 : 180);
+
       $('app').classList.add('ready');
 
       renderAll();
@@ -3143,11 +3162,45 @@
       err.textContent = e.message === 'FETCH_FAILED'
         ? '无法读取 encrypted.bin，请用本地门户脚本打开'
         : '密码错误或数据损坏';
+      input.setAttribute('aria-invalid', 'true');
+      lock.classList.add('is-error');
+      setTimeout(function () { lock.classList.remove('is-error'); }, 300);
       input.select();
     } finally {
       btn.disabled = false;
-      btn.textContent = '解密进入';
+      btn.setAttribute('aria-busy', 'false');
+      lock.classList.remove('is-busy');
+      label.textContent = '解密进入';
     }
+  }
+
+  // 锁屏控件：表单提交 / 密码显隐 / 大写锁定提示
+  function bindLock() {
+    var input = $('passwordInput');
+    var reveal = $('revealBtn');
+    var caps = $('capsHint');
+    var form = $('lockForm');
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      unlock();
+    });
+
+    reveal.addEventListener('click', function () {
+      var shown = input.type === 'text';
+      input.type = shown ? 'password' : 'text';
+      reveal.setAttribute('aria-pressed', String(!shown));
+      reveal.setAttribute('aria-label', shown ? '显示密码' : '隐藏密码');
+      reveal.setAttribute('title', shown ? '显示密码' : '隐藏密码');
+      input.focus();
+    });
+
+    function syncCaps(e) {
+      var on = typeof e.getModifierState === 'function' && e.getModifierState('CapsLock');
+      caps.hidden = !on;
+    }
+    input.addEventListener('keydown', syncCaps);
+    input.addEventListener('keyup', syncCaps);
   }
 
   // ---------- 启动 ----------
@@ -3183,10 +3236,7 @@
     initTheme();
     initRail();
 
-    $('unlockBtn').addEventListener('click', unlock);
-    $('passwordInput').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') unlock();
-    });
+    bindLock();
 
     $('themeBtn').addEventListener('click', function () {
       applyTheme(state.theme === 'dark' ? 'light' : 'dark');

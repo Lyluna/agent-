@@ -86,6 +86,17 @@
   --rail: 236px;
   --rail-collapsed: 64px;
   --pad: var(--sp-7);
+
+  /* v5：纸面底纹、锁屏晶格与动效预算（2026-11-12） */
+  --grid-line: rgba(31, 29, 25, .035);
+  --grid-step: 48px;
+  --ambient: rgba(255, 255, 255, .55);
+  --lattice: rgba(31, 29, 25, .18);
+  --lattice-signal: rgba(31, 107, 74, .30);
+  --gate-glow: rgba(247, 244, 239, .92);
+  --dur-fast: 120ms;
+  --dur-mid: 180ms;
+  --ease-out: cubic-bezier(.2, .7, .2, 1);
 }
 
 :root[data-theme="dark"] {
@@ -124,6 +135,13 @@
   --card-warm: #221d15;
   --card-warm-border: #3a3122;
   --card-shadow: none;
+
+  /* v5 深色：底纹更暗，晶格与锁屏光用低透明度 */
+  --grid-line: rgba(242, 239, 233, .028);
+  --ambient: rgba(74, 86, 72, .14);
+  --lattice: rgba(242, 239, 233, .14);
+  --lattice-signal: rgba(92, 189, 146, .34);
+  --gate-glow: rgba(20, 18, 15, .90);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -3586,10 +3604,10 @@ body[data-view="agents"] .toolbar { display: none; }
   align-items: flex-end;
   gap: 4px;
   padding: 12px var(--sp-4);
-  background: var(--card);
+  background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius-card);
-  margin: 0 0 14px;
+  margin: 0 0 var(--sp-4);
 }
 .api-spark-col {
   flex: 1;
@@ -3605,25 +3623,25 @@ body[data-view="agents"] .toolbar { display: none; }
   max-width: 22px;
   min-height: 0;
   background: var(--signal);
-  border-radius: 2px 2px 0 0;
+  border-radius: var(--radius-chip) var(--radius-chip) 0 0;
   opacity: .85;
 }
 .api-spark-day {
-  font-size: 10px;
+  font-size: var(--fs-micro);
   line-height: 1;
-  color: var(--ink-3, var(--muted, #777));
+  color: var(--faint);
   white-space: nowrap;
 }
 .api-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--rule);
   border-radius: var(--radius-card);
-  background: var(--card);
+  background: var(--surface);
 }
 .api-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   min-width: 620px;
 }
 .api-table th,
@@ -3634,7 +3652,7 @@ body[data-view="agents"] .toolbar { display: none; }
 }
 .api-table th {
   font-weight: 500;
-  color: var(--ink-3, var(--muted, #777));
+  color: var(--faint);
   border-bottom: 1px solid var(--rule);
 }
 .api-table td { border-top: 1px solid var(--rule); }
@@ -3712,4 +3730,397 @@ body[data-view="agents"] .toolbar { display: none; }
   /* 五个 tab 在 390px 下要能同屏看到，缩小间距而不是依赖横滑 */
   .tabs { gap: 12px; }
   .tab { font-size: var(--fs-small); }
+}
+
+/* ============================================================
+   V5 · 2026-11-12：锁屏 gate / 纸面底纹 / 视图入场
+   只加外观，不动数据、路由与密码流程。
+   令牌见 :root 与 :root[data-theme="dark"] 里的 v5 段。
+   ============================================================ */
+
+/* 纸面：一层极弱网格 + 左上暖光，代替纯色平涂 */
+body {
+  background-color: var(--ground);
+  background-image:
+    radial-gradient(1100px 620px at 16% -12%, var(--ambient), transparent 70%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: auto, var(--grid-step) var(--grid-step), var(--grid-step) var(--grid-step);
+  background-attachment: fixed;
+}
+
+/* ── 锁屏：整屏 gate，左侧说明，右侧解锁面板 ── */
+#lock {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--sp-7);
+  overflow: hidden;
+  transition: opacity var(--dur-mid) var(--ease-out), transform var(--dur-mid) var(--ease-out);
+}
+
+.gate-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.gate-lattice {
+  position: absolute;
+  right: -8%;
+  top: 50%;
+  width: min(900px, 72vw);
+  height: auto;
+  color: var(--lattice);
+  opacity: .55;
+  transform: translateY(-50%);
+}
+
+.gate-lattice-signal {
+  color: var(--lattice-signal);
+  opacity: .7;
+}
+
+.gate-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(64% 68% at 30% 46%, var(--gate-glow), transparent 72%);
+}
+
+.gate {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, .95fr);
+  gap: var(--sp-7);
+  align-items: center;
+}
+
+.gate-intro { max-width: 520px; }
+
+.gate-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.gate-seal {
+  width: 30px;
+  height: 30px;
+  color: var(--text);
+}
+
+.gate-word {
+  font-size: var(--fs-section);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.gate-sub {
+  font-size: var(--fs-micro);
+  color: var(--faint);
+  font-family: var(--mono);
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--rule);
+}
+
+.gate-intro h1 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-hero);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: var(--sp-5) 0 var(--sp-4);
+}
+
+.gate-lede {
+  font-size: var(--fs-body);
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 44ch;
+}
+
+.gate-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--rule);
+}
+
+.gate-facts dt {
+  font-size: var(--fs-micro);
+  color: var(--faint);
+}
+
+.gate-facts dd {
+  font-family: var(--mono);
+  font-size: var(--fs-small);
+  color: var(--text);
+  margin-top: var(--sp-1);
+}
+
+.gate-panel {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  padding: var(--sp-6);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+
+.gate-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--signal), transparent);
+  opacity: .4;
+}
+
+.gate-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.gate-panel-head h2 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.gate-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.gate-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--signal);
+}
+
+.gate-hint {
+  font-size: var(--fs-small);
+  color: var(--muted);
+  line-height: 1.6;
+  margin: var(--sp-2) 0 var(--sp-5);
+}
+
+.field-label {
+  display: block;
+  font-size: var(--fs-small);
+  color: var(--muted);
+  margin-bottom: var(--sp-2);
+}
+
+.field-wrap { position: relative; }
+
+.field-wrap .field {
+  height: 44px;
+  padding: 0 48px 0 var(--sp-3);
+  transition: border-color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.field-wrap .field:focus {
+  border-color: var(--signal);
+  box-shadow: 0 0 0 3px var(--signal-soft);
+}
+
+.field-reveal {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out);
+}
+
+.field-reveal:hover { color: var(--text); background: var(--raised); }
+.field-reveal[aria-pressed="true"] { color: var(--text); }
+.field-reveal svg { width: 18px; height: 18px; }
+
+.caps-hint {
+  font-size: var(--fs-micro);
+  color: var(--warn);
+  margin-top: var(--sp-2);
+}
+
+.gate-submit {
+  width: 100%;
+  height: 44px;
+  margin-top: var(--sp-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  position: relative;
+  overflow: hidden;
+  transition: opacity var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+
+.gate-submit:active { transform: translateY(1px); }
+
+.gate-arrow {
+  width: 16px;
+  height: 16px;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.gate-submit:hover .gate-arrow { transform: translateX(2px); }
+
+.lock-err {
+  font-size: var(--fs-small);
+  color: var(--danger);
+  min-height: 18px;
+  margin-top: var(--sp-2);
+}
+
+#lock.is-error .field-wrap .field { border-color: var(--danger); }
+#lock.is-error .field-wrap .field:focus { box-shadow: 0 0 0 3px var(--warn-soft); }
+
+.gate-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  color: var(--faint);
+}
+
+.gate-foot span + span::before {
+  content: "·";
+  margin-right: var(--sp-3);
+  color: var(--rule);
+}
+
+.gate-meta {
+  position: absolute;
+  z-index: 1;
+  left: var(--sp-7);
+  right: var(--sp-7);
+  bottom: var(--sp-5);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  color: var(--faint);
+}
+
+#lock.is-open {
+  opacity: 0;
+  transform: scale(.995);
+  pointer-events: none;
+}
+
+/* 解锁中的细线进度：只在密码提交后出现 */
+#lock.is-busy .gate-submit::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 40%;
+  height: 2px;
+  background: var(--primary-ink);
+  opacity: .7;
+}
+
+/* ── 动效：120–220ms，只做状态变化 ── */
+@media (prefers-reduced-motion: no-preference) {
+  .gate-lattice { animation: gate-drift 24s ease-in-out infinite alternate; }
+  .gate-lattice-signal { animation: gate-breathe 4.8s ease-in-out infinite; }
+  .gate-dot { animation: gate-breathe 3.2s ease-in-out infinite; }
+  #lock.is-busy .gate-submit::after { animation: gate-progress 1.1s linear infinite; }
+  #lock.is-error .gate-panel { animation: gate-shake 240ms var(--ease-out); }
+  .view.active { animation: view-in var(--dur-mid) var(--ease-out) both; }
+
+  @keyframes gate-drift {
+    from { transform: translateY(-50%) translateX(0); }
+    to { transform: translateY(-50%) translateX(-16px); }
+  }
+  @keyframes gate-breathe {
+    0%, 100% { opacity: .4; }
+    50% { opacity: .9; }
+  }
+  @keyframes gate-progress {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(350%); }
+  }
+  @keyframes gate-shake {
+    0%, 100% { transform: none; }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  @keyframes view-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #lock,
+  .field-wrap .field,
+  .field-reveal,
+  .gate-submit,
+  .gate-arrow { transition: none; }
+  .view.active { animation: none; }
+}
+
+/* ── 手机：gate 单列，晶格退到背后，不横向溢出 ── */
+@media (max-width: 760px) {
+  #lock {
+    justify-content: flex-start;
+    padding: var(--sp-5);
+    padding-top: var(--sp-6);
+    overflow: visible;
+  }
+  .gate {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-6);
+  }
+  .gate-lattice {
+    right: -46%;
+    width: 150vw;
+    opacity: .38;
+  }
+  .gate-intro h1 { margin-top: var(--sp-4); }
+  .gate-facts { gap: var(--sp-3); }
+  .gate-panel { padding: var(--sp-5); }
+  .gate-meta {
+    position: static;
+    margin-top: var(--sp-6);
+    padding: 0;
+    flex-wrap: wrap;
+  }
 }
