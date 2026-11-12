@@ -16,28 +16,122 @@
      锁屏
      ============================================================ -->
 <div id="lock">
-  <div class="lock-panel">
-    <svg class="lock-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <rect x="3.5" y="10.5" width="17" height="10.5" rx="2"/>
-      <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/>
-      <circle cx="12" cy="15.75" r="1.1" fill="currentColor" stroke="none"/>
+  <div class="gate-backdrop" aria-hidden="true">
+    <svg class="gate-lattice" viewBox="0 0 900 760" preserveAspectRatio="xMidYMid slice">
+      <g class="gate-lattice-lines" fill="none" stroke="currentColor" stroke-width="1">
+        <path d="M126 118 L268 54 L420 108 L548 62 L704 136"/>
+        <path d="M126 118 L180 262 L96 404 L214 548 L140 686"/>
+        <path d="M268 54 L298 214 L420 108 L452 276 L548 62"/>
+        <path d="M704 136 L642 288 L792 352 L704 508 L812 626"/>
+        <path d="M298 214 L180 262 L214 548 L360 470 L452 276"/>
+        <path d="M642 288 L548 340 L360 470 L452 276"/>
+        <path d="M548 340 L604 486 L704 508 L604 640 L512 700"/>
+        <path d="M214 548 L320 612 L360 470 L512 700 L604 640"/>
+        <path d="M96 404 L214 548 L180 262"/>
+        <path d="M792 352 L704 508 L812 626"/>
+      </g>
+      <g class="gate-lattice-nodes" fill="currentColor">
+        <circle cx="126" cy="118" r="3"/>
+        <circle cx="268" cy="54" r="3"/>
+        <circle cx="420" cy="108" r="4"/>
+        <circle cx="548" cy="62" r="3"/>
+        <circle cx="704" cy="136" r="3"/>
+        <circle cx="180" cy="262" r="3"/>
+        <circle cx="298" cy="214" r="3"/>
+        <circle cx="452" cy="276" r="4"/>
+        <circle cx="642" cy="288" r="3"/>
+        <circle cx="96" cy="404" r="3"/>
+        <circle cx="360" cy="470" r="4"/>
+        <circle cx="548" cy="340" r="3"/>
+        <circle cx="792" cy="352" r="3"/>
+        <circle cx="214" cy="548" r="3"/>
+        <circle cx="604" cy="486" r="3"/>
+        <circle cx="704" cy="508" r="4"/>
+        <circle cx="320" cy="612" r="3"/>
+        <circle cx="512" cy="700" r="3"/>
+        <circle cx="604" cy="640" r="3"/>
+        <circle cx="140" cy="686" r="3"/>
+        <circle cx="812" cy="626" r="3"/>
+      </g>
+      <g class="gate-lattice-signal" fill="currentColor">
+        <circle cx="420" cy="108" r="9"/>
+        <circle cx="452" cy="276" r="9"/>
+        <circle cx="360" cy="470" r="9"/>
+        <circle cx="704" cy="508" r="9"/>
+      </g>
     </svg>
-
-    <h1>共享记忆库</h1>
-    <p class="lede">内容以 AES-256-GCM 加密，密码只在本机浏览器里使用。</p>
-
-    <label class="visually-hidden" for="passwordInput" style="position:absolute;left:-9999px">访问密码</label>
-    <input class="field" id="passwordInput" type="password" placeholder="访问密码"
-           autocomplete="current-password" spellcheck="false">
-    <button class="btn btn-block" id="unlockBtn">解密进入</button>
-    <div class="lock-err" id="lockErr" role="alert"></div>
-
-    <p class="lock-foot">
-      服务端只保存密文。密码不发送、不记录、不缓存。<br>
-      密文文件 encrypted.bin · 解密全部在浏览器完成
-    </p>
+    <div class="gate-vignette"></div>
   </div>
+
+  <div class="gate">
+    <section class="gate-intro">
+      <div class="gate-brand">
+        <svg class="gate-seal" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3.5" y="10.5" width="17" height="10.5" rx="2"/>
+          <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/>
+          <circle cx="12" cy="15.75" r="1.1" fill="currentColor" stroke="none"/>
+        </svg>
+        <span class="gate-word">脉络</span>
+        <span class="gate-sub">共享记忆库</span>
+      </div>
+
+      <h1>记忆在本地，<br>钥匙在你手里。</h1>
+      <p class="gate-lede">各 Agent 的对话、结论与待办，以密文留在这里。密码不发送、不记录，只在这台浏览器里使用。</p>
+
+      <dl class="gate-facts">
+        <div><dt>加密</dt><dd>AES-256-GCM</dd></div>
+        <div><dt>解密</dt><dd>仅浏览器内</dd></div>
+        <div><dt>服务端</dt><dd>零明文</dd></div>
+      </dl>
+    </section>
+
+    <section class="gate-panel" aria-labelledby="gatePanelTitle">
+      <div class="gate-panel-head">
+        <h2 id="gatePanelTitle">解锁记忆库</h2>
+        <span class="gate-state"><span class="gate-dot"></span>本地解密</span>
+      </div>
+      <p class="gate-hint" id="lockHint">输入访问密码继续。密码不会离开这台设备。</p>
+
+      <form class="lock-form" id="lockForm" novalidate>
+        <label class="field-label" for="passwordInput">访问密码</label>
+        <div class="field-wrap">
+          <input class="field" id="passwordInput" type="password" placeholder="输入访问密码"
+                 autocomplete="current-password" spellcheck="false"
+                 aria-describedby="lockHint lockErr">
+          <button class="field-reveal" id="revealBtn" type="button"
+                  aria-label="显示密码" aria-pressed="false" title="显示密码">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/>
+              <circle cx="12" cy="12" r="2.5"/>
+            </svg>
+          </button>
+        </div>
+        <p class="caps-hint" id="capsHint" hidden>大写锁定已开启</p>
+
+        <button class="btn gate-submit" id="unlockBtn" type="submit" aria-busy="false">
+          <span id="unlockLabel">解密进入</span>
+          <svg class="gate-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4.5 12h14M13 6.5l5.5 5.5-5.5 5.5"/>
+          </svg>
+        </button>
+        <div class="lock-err" id="lockErr" role="alert" aria-live="polite"></div>
+      </form>
+
+      <p class="gate-foot">
+        <span>encrypted.bin</span>
+        <span>客户端解密</span>
+        <span>无遥测</span>
+      </p>
+    </section>
+  </div>
+
+  <footer class="gate-meta">
+    <span>脉络 / 共享记忆库</span>
+    <span class="gate-meta-right">本地优先 · 端到端加密内容</span>
+  </footer>
 </div>
 
 <!-- ============================================================
