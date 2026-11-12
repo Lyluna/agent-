@@ -17,6 +17,7 @@
     tool: 'all',
     agent: 'all',
     category: 'all',
+    catOpen: false,        // 认知页的分类筛选是否已展开
     theme: 'light',
     railCollapsed: false,
     paletteIndex: 0,
@@ -1286,15 +1287,33 @@
       '<span class="count">' + list.length + ' 条</span></div>';
     html += '<p class="sec-note">技术决策、踩坑经验、已确认的做法。分类写在 技术决策.md 每个标题下一行「分类：xxx」。</p>';
 
-    // 分类筛选
+    // 分类筛选：默认只露前 11 个，剩下的收进「更多」。
+    // 40 多个分类一次铺开会占掉五整行，把下面的结论推到首屏之外。
+    var CAT_LIMIT = 11;
+    var shownCats = cats;
+    var hiddenCats = 0;
+    if (!state.catOpen && cats.length > CAT_LIMIT) {
+      shownCats = cats.slice(0, CAT_LIMIT);
+      if (state.category !== 'all') {
+        var selCat = cats.filter(function (c) { return c.name === state.category; })[0];
+        if (selCat && shownCats.indexOf(selCat) === -1) shownCats = shownCats.concat([selCat]);
+      }
+      hiddenCats = cats.length - shownCats.length;
+    }
     html += '<div class="chip-row cat-row">';
     html += '<button class="chip" data-cat="all" aria-pressed="' +
       (state.category === 'all') + '">全部<span class="c">' + MEM.beliefs.length + '</span></button>';
-    cats.forEach(function (c) {
+    shownCats.forEach(function (c) {
       html += '<button class="chip" data-cat="' + esc(c.name) + '" aria-pressed="' +
         (state.category === c.name) + '">' + esc(c.name) +
         '<span class="c">' + c.count + '</span></button>';
     });
+    if (hiddenCats > 0) {
+      html += '<button class="chip chip-more" data-cat-more="1" aria-expanded="false">更多 ' +
+        hiddenCats + ' 个分类</button>';
+    } else if (cats.length > CAT_LIMIT) {
+      html += '<button class="chip chip-more" data-cat-more="1" aria-expanded="true">收起分类</button>';
+    }
     html += '</div>';
 
     if (!list.length) {
