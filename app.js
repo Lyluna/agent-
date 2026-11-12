@@ -32,15 +32,17 @@
     { id: 'memory',    label: '记忆', icon: 'clock', panels: ['facts', 'beliefs', 'intents'] },
     { id: 'knowledge', label: '知识', icon: 'drop',  panels: ['knowledge'] },
     { id: 'requests',  label: '要求', icon: 'check', panels: ['requests'] },
+    { id: 'health',    label: '健康', icon: 'pulse', panels: ['decide', 'health', 'evidence', 'assets', 'usage'] },
     { id: 'graph',     label: '关系', icon: 'graph', panels: ['graph'] },
-    { id: 'system',    label: '系统', icon: 'pulse', panels: ['usage', 'cloud', 'disk', 'agents'] }
+    { id: 'system',    label: '系统', icon: 'tool', panels: ['cloud', 'disk', 'agents'] }
   ];
 
   var PANEL_LABEL = {
     overview: '概览', work: '项目',
     facts: '事实', beliefs: '认知', intents: '待办',
     knowledge: '知识', requests: '要求', graph: '关系',
-    usage: '使用', cloud: '云端', disk: '磁盘', agents: '协作'
+    decide: '待你决定', health: '记忆健康', evidence: '证据新鲜度', assets: '资产',
+    usage: '用量', cloud: '云端', disk: '磁盘', agents: '协作'
   };
 
   // 旧分区 id → 新入口。深链 #view=facts、命令面板、data-go 都靠这张表找回位置
@@ -202,8 +204,9 @@
                  (MEM.sections.skills ? MEM.sections.skills.count : 0) +
                  (MEM.sections.tools ? MEM.sections.tools.count : 0),
       requests: (MEM.requests || []).filter(function (r) { return r.kind === 'request'; }).length,
+      health: (MEM.health && MEM.health.decide ? MEM.health.decide.count : 0) || 0,
       graph: 0,
-      system: (MEM.usage && MEM.usage.coverage ? MEM.usage.coverage.sessions : 0) || 0
+      system: (MEM.cloud && MEM.cloud.today ? MEM.cloud.today.calls : 0) || 0
     };
 
     $('railNav').innerHTML = VIEWS.map(function (v) {
@@ -320,6 +323,32 @@
         tl.count + '</b> 个工具。';
     } else if (state.panel === 'requests') {
       renderRequests();
+    } else if (state.panel === 'decide') {
+      var dc = (MEM.health && MEM.health.decide) || { count: 0, items: [] };
+      finding = dc.count
+        ? '<b class="num">' + dc.count + '</b> 件事在等你拍板。'
+        : '没有等你拍板的事。';
+      renderDecide();
+    } else if (state.panel === 'health') {
+      var mh = (MEM.health && MEM.health.memory) || {};
+      finding = mh.ok
+        ? '记忆门禁全部通过，启动文件 ' + (mh.budget ? mh.budget.bytes : 0) + ' B / ' +
+          (mh.budget ? mh.budget.lines : 0) + ' 行。'
+        : '<b class="num">' + (mh.error_count || 0) + '</b> 项门禁没过。';
+      renderHealth();
+    } else if (state.panel === 'evidence') {
+      var ev = (MEM.health && MEM.health.evidence) || {};
+      var vv = ev.verify || {};
+      finding = '<b class="num">' + (vv.ok || 0) + '/' + (vv.total || 0) +
+        '</b> 项验证有最近一次跑通时间，过期 <b class="num">' +
+        ((vv.stale || []).length) + '</b> 项。';
+      renderEvidence();
+    } else if (state.panel === 'assets') {
+      var at = (MEM.health && MEM.health.assets) || { totals: {} };
+      finding = '<b class="num">' + (at.totals ? at.totals.tasks : 0) +
+        '</b> 个任务有素材记录，缺文件 <b class="num">' + (at.totals ? at.totals.missing : 0) +
+        '</b>，未登记候选 <b class="num">' + (at.totals ? at.totals.orphans : 0) + '</b>。';
+      renderAssets();
     } else if (state.panel === 'usage') {
       var uc = (MEM.usage && MEM.usage.coverage) || {};
       finding = uc.calls
@@ -2285,6 +2314,225 @@
     box.innerHTML = html;
   }
 
+  // ---------- Phase 5 健康五视图 ----------
+  function healthMissing(box, title) {
+    box.innerHTML = '<div class="sec-label"><h2>' + esc(title) + '</h2></div>' +
+      '<p class="sec-note">读不到健康快照。运行 ' +
+      '<code>python -I 08-AI记忆/tools/health_snapshot.py --json</code> 看具体错误。</p>';
+  }
+
+  function ageText(days) {
+    if (days == null || isNaN(days)) return '';
+    var n = Number(days);
+    if (n <= 0) return '今天';
+    return n + ' 天前';
+  }
+
+  function renderDecide() {
+    var box = $('view-decide');
+    if (!box) return;
+    var h = MEM.health || {};
+    if (!h.decide) { healthMissing(box, '待你决定'); return; }
+    var d = h.decide;
+    var items = d.items || [];
+
+    var html = '<div class="sec-label"><h2>待你决定</h2>' +
+      '<span class="count">' + d.count + ' 项</span></div>' +
+      '<p class="sec-note">只收真正要你拍板的事：待办里标了「等确认」、已过审校/verify 等你交付的任务、' +
+      '阻塞表里卡在你名下的项、待批提案。<b>高优先级待办不在这里</b>——它们默认可以直接做。</p>';
+
+    if (!items.length) {
+      html += '<div class="health-empty">没有等你拍板的事。系统会继续跑不需要你点头的部分。</div>';
+    } else {
+      html += '<div class="health-items">' + items.map(function (it) {
+        var age = ageText(it.age_days);
+        return '<article class="health-item">' +
+          '<span class="health-kind">' + esc(it.kind) + '</span>' +
+          '<div class="health-body"><b>' + esc(it.title) + '</b>' +
+            '<span class="health-meta">' + esc(it.detail || '') +
+            (age ? ' · ' + esc(age) : '') + '</span></div>' +
+          '<code class="health-src">' + esc(it.source || '') + '</code>' +
+          '</article>';
+      }).join('') + '</div>';
+    }
+    box.innerHTML = html;
+  }
+
+  function renderHealth() {
+    var box = $('view-health');
+    if (!box) return;
+    var h = MEM.health || {};
+    if (!h.memory) { healthMissing(box, '记忆健康度'); return; }
+    var m = h.memory;
+    var b = m.budget || {};
+    var checks = m.checks || {};
+    var names = Object.keys(checks);
+    var failed = names.filter(function (k) { return checks[k] > 0; });
+
+    var html = '<div class="sec-label"><h2>记忆健康度</h2>' +
+      '<span class="count">' + (m.ok ? '门禁通过' : m.error_count + ' 项错误') + '</span></div>' +
+      '<p class="sec-note">直接复用 <code>check_memory.py</code> 的 13 项门禁，门户不另写一套规则。' +
+      '冷启动预算、启动清单、镜像新鲜度、技术决策核验、待办状态、断链都在里面。</p>';
+
+    html += '<div class="usage-stats">' +
+      '<div class="usage-stat"><span class="usage-n">' + (b.bytes || 0) + ' B</span>' +
+        '<span class="usage-k">current.md</span>' +
+        '<span class="usage-h">' + (b.lines || 0) + ' 行 · 上限 3072 B / 50 行' +
+        (b.ok ? '' : ' · <b>已超限</b>') + '</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + (names.length - failed.length) + ' / ' + names.length + '</span>' +
+        '<span class="usage-k">门禁通过</span>' +
+        '<span class="usage-h">' + (failed.length ? failed.join('、') : '没有失败项') + '</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + (m.error_count || 0) + '</span>' +
+        '<span class="usage-k">待修错误</span>' +
+        '<span class="usage-h">' + (m.ok ? '全部通过' : '见下表') + '</span></div>' +
+      '</div>';
+
+    html += '<div class="sec-label sec-sub"><h3>逐项门禁</h3></div><div class="health-checks">' +
+      names.map(function (k) {
+        var n = checks[k];
+        return '<div class="health-check' + (n ? ' is-bad' : '') + '">' +
+          '<span>' + esc(k) + '</span><span class="num">' + (n ? n + ' 项' : '通过') + '</span></div>';
+      }).join('') + '</div>';
+
+    if ((m.errors || []).length) {
+      html += '<div class="sec-label sec-sub"><h3>错误原文</h3></div>' +
+        '<div class="health-errors">' + m.errors.map(function (e) {
+          return '<div class="health-error">' + esc(e) + '</div>';
+        }).join('') + '</div>';
+    }
+    box.innerHTML = html;
+  }
+
+  function renderEvidence() {
+    var box = $('view-evidence');
+    if (!box) return;
+    var h = MEM.health || {};
+    if (!h.evidence) { healthMissing(box, '证据新鲜度'); return; }
+    var ev = h.evidence;
+    var v = ev.verify || {};
+    var c = ev.credibility || {};
+    var mf = ev.manifest || {};
+
+    var html = '<div class="sec-label"><h2>证据新鲜度</h2></div>' +
+      '<p class="sec-note">「上次跑通」和「上次尝试」分开记：失败不会抹掉上一次成功的时间。' +
+      '这里不是催你重跑所有东西，而是标出<b>哪条结论已经太久没被验证</b>。</p>';
+
+    html += '<div class="usage-stats">' +
+      '<div class="usage-stat"><span class="usage-n">' + (v.ok || 0) + ' / ' + (v.total || 0) + '</span>' +
+        '<span class="usage-k">验证有跑通记录</span>' +
+        '<span class="usage-h">过期阈值 7 天 · 失败 ' + (v.failed || 0) + ' 项</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + (v.stale || []).length + '</span>' +
+        '<span class="usage-k">已过期</span>' +
+        '<span class="usage-h">' + ((v.never || []).length) + ' 项从未跑通</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + (c.marked || 0) + ' / ' + (c.total || 0) + '</span>' +
+        '<span class="usage-k">技术决策标了核验</span>' +
+        '<span class="usage-h">未标 ' + (c.missing || 0) + ' 条</span></div>' +
+      '</div>';
+
+    if ((v.stale || []).length) {
+      html += '<div class="sec-label sec-sub"><h3>过了 7 天没跑通</h3></div><div class="health-items">' +
+        v.stale.map(function (r) {
+          return '<article class="health-item">' +
+            '<span class="health-kind">过期</span>' +
+            '<div class="health-body"><b>' + esc(r.label) + '</b>' +
+              '<span class="health-meta">上次跑通 ' + esc(r.last_ok || '—') +
+              ' · ' + esc(ageText(r.age_days)) + '</span></div></article>';
+        }).join('') + '</div>';
+    }
+    if ((v.never || []).length) {
+      html += '<div class="sec-label sec-sub"><h3>从未跑通</h3></div>' +
+        '<p class="sec-note">' + (v.never || []).map(esc).join('、') + '</p>';
+    }
+
+    var by = c.by_status || {};
+    var byKeys = Object.keys(by);
+    if (byKeys.length) {
+      html += '<div class="sec-label sec-sub"><h3>核验状态分布</h3></div><div class="health-checks">' +
+        byKeys.map(function (k) {
+          return '<div class="health-check"><span>' + esc(k) + '</span>' +
+            '<span class="num">' + by[k] + ' 条</span></div>';
+        }).join('') + '</div>';
+    }
+
+    html += '<div class="sec-label sec-sub"><h3>任务证据 manifest</h3>' +
+      '<span class="count">' + (mf.tasks || 0) + ' 个任务 / ' + (mf.entries || 0) + ' 条</span></div>';
+    if (!(mf.missing_count || 0) && !(mf.altered_count || 0)) {
+      html += '<p class="sec-note">全部条目都在，sha256 与生成时一致。</p>';
+    } else {
+      var bad = (mf.missing || []).map(function (p) {
+        return '<div class="health-error">缺文件：' + esc(p) + '</div>';
+      }).concat((mf.altered || []).map(function (p) {
+        return '<div class="health-error">sha256 变了：' + esc(p) + '</div>';
+      }));
+      html += '<div class="health-errors">' + bad.join('') + '</div>';
+    }
+    box.innerHTML = html;
+  }
+
+  function renderAssets() {
+    var box = $('view-assets');
+    if (!box) return;
+    var h = MEM.health || {};
+    if (!h.assets) { healthMissing(box, '资产'); return; }
+    var a = h.assets;
+    var t = a.totals || {};
+    var music = a.music || {};
+
+    var html = '<div class="sec-label"><h2>资产</h2></div>' +
+      '<p class="sec-note">扫任务里的 <code>license.json</code> / <code>sources.jsonl</code> 和视频音乐库。' +
+      '<b>只报候选，不删任何文件</b>；孤儿素材、重复文件、过期授权都要你确认后才动。</p>';
+
+    html += '<div class="usage-stats">' +
+      '<div class="usage-stat"><span class="usage-n">' + (t.tasks || 0) + '</span>' +
+        '<span class="usage-k">有素材记录的任务</span>' +
+        '<span class="usage-h">缺文件 ' + (t.missing || 0) + ' 个</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + (t.orphans || 0) + '</span>' +
+        '<span class="usage-k">未登记素材候选</span>' +
+        '<span class="usage-h">没写进 license/sources 的成片或图片</span></div>' +
+      '<div class="usage-stat"><span class="usage-n">' + (t.duplicates || 0) + '</span>' +
+        '<span class="usage-k">重复 sha256</span>' +
+        '<span class="usage-h">过期授权 ' + (t.expired || 0) + ' 项</span></div>' +
+      '</div>';
+
+    if (!(a.tasks || []).length) {
+      html += '<div class="health-empty">还没有带授权记录的任务素材。</div>';
+    } else {
+      html += '<div class="health-items">' + a.tasks.map(function (task) {
+        var warn = [];
+        if (task.missing_count) warn.push('缺文件 ' + task.missing_count);
+        if (task.orphan_count) warn.push('未登记 ' + task.orphan_count);
+        if ((task.duplicates || []).length) warn.push('重复 ' + task.duplicates.length);
+        if ((task.expired || []).length) warn.push('过期 ' + task.expired.length);
+        var detail = '授权 ' + task.licensed + ' 条 · 来源 ' + task.sources +
+          ' 条 · 素材 ' + task.media + ' 个' +
+          (task.publish ? ' · 发布：' + task.publish : '');
+        return '<article class="health-item">' +
+          '<span class="health-kind">' + esc(task.task) + '</span>' +
+          '<div class="health-body"><b>' + (warn.length ? warn.join(' / ') : '没有异常') + '</b>' +
+            '<span class="health-meta">' + esc(detail) + '</span>' +
+            (task.orphans && task.orphans.length
+              ? '<span class="health-meta">未登记：' + task.orphans.slice(0, 5).map(esc).join('、') +
+                (task.orphan_count > 5 ? ' …' : '') + '</span>'
+              : '') +
+          '</div></article>';
+      }).join('') + '</div>';
+    }
+
+    html += '<div class="sec-label sec-sub"><h3>视频音乐库</h3>' +
+      '<span class="count">' + (music.tracks || 0) + ' 首</span></div>';
+    if (!music.tracks) {
+      html += '<p class="sec-note">还没有音乐库索引。</p>';
+    } else {
+      var lic = music.by_license || {};
+      var licText = Object.keys(lic).map(function (k) { return k + ' ' + lic[k]; }).join(' · ');
+      html += '<p class="sec-note">授权分布：' + esc(licText) +
+        '；未使用 ' + (music.unused || 0) + ' 首；缺文件 ' + (music.missing_count || 0) +
+        ' 首；重复 ' + ((music.duplicates || []).length) + ' 组。' +
+        '只收 CC0 / CC-BY / 有授权凭证的曲子，不抓流行音乐。</p>';
+    }
+    box.innerHTML = html;
+  }
+
   function renderUsage() {
     var box = $('view-usage');
     if (!box) return;
@@ -2916,6 +3164,7 @@
     MEM.sections = MEM.sections || {};
     MEM.relations = MEM.relations || { nodes: [], links: [] };
     MEM.requests = MEM.requests || [];
+    MEM.health = MEM.health || {};
   }
 
   function renderAll() {

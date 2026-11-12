@@ -3645,3 +3645,65 @@ body[data-view="agents"] .toolbar { display: none; }
 }
 .api-ok { color: var(--signal); }
 .api-err { color: var(--danger); }
+
+/* ---------- Phase 5 健康五视图 ---------- */
+.health-items { display: grid; gap: 8px; margin: 0 0 16px; }
+.health-item {
+  display: grid; grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 12px; align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.health-kind {
+  font-size: var(--fs-micro); color: var(--muted);
+  background: var(--raised); border-radius: var(--radius-chip);
+  padding: 2px 6px; text-align: center; white-space: nowrap;
+}
+.health-body { display: grid; gap: 3px; min-width: 0; }
+.health-body b { font-size: var(--fs-body); font-weight: 600; overflow-wrap: anywhere; }
+.health-meta {
+  font-size: var(--fs-micro); color: var(--faint); line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.health-src {
+  font-size: var(--fs-micro); color: var(--faint);
+  max-width: 220px; overflow-wrap: anywhere;
+}
+.health-empty {
+  padding: 24px; margin: 0 0 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-card);
+  color: var(--muted);
+}
+.health-checks {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1px; margin: 0 0 16px;
+  border: 1px solid var(--border); border-radius: var(--radius-card);
+  overflow: hidden; background: var(--border);
+}
+.health-check {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 9px 12px; background: var(--surface); font-size: var(--fs-small);
+}
+.health-check.is-bad { background: var(--warn-soft); color: var(--warn); }
+.health-errors { display: grid; gap: 6px; margin: 0 0 16px; }
+.health-error {
+  padding: 8px 10px; border-left: 3px solid var(--danger);
+  background: var(--raised); font-family: var(--mono);
+  font-size: var(--fs-micro); overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .health-item { grid-template-columns: 1fr; }
+  .health-kind { justify-self: start; }
+  .health-src { max-width: 100%; }
+}
+@media (max-width: 640px) {
+  .health-checks { grid-template-columns: 1fr; }
+  /* 健康页的三张指标卡在窄屏单列，否则 minmax(160px) 会把页面撑宽后被裁掉 */
+  .health-items ~ .usage-stats,
+  #view-health .usage-stats,
+  #view-evidence .usage-stats,
+  #view-assets .usage-stats { grid-template-columns: 1fr; }
+}
