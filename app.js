@@ -183,7 +183,11 @@
       return true;
     }
     if (typeof key.idx === 'number') {
-      var facts = document.querySelectorAll('.fact');
+      // 总览页也画了一份 .fact 卡片，且藏在 display:none 的视图里；
+      // 直接取第 idx 个会 focus 到看不见的副本（focus 静默失败，焦点掉回 body）。
+      var facts = Array.prototype.filter.call(document.querySelectorAll('.fact'), function (f) {
+        return f.offsetParent !== null;
+      });
       var next = facts[Math.min(key.idx, facts.length - 1)];
       if (next) { next.focus(); return true; }
       var head = document.querySelector('#view-facts h2');
@@ -194,7 +198,9 @@
 
   // 要求列表的行本身不可聚焦，焦点接管给同一行里剩下的操作按钮。
   function refocusReq(idx) {
-    var rows = document.querySelectorAll('#view-requests .req-row');
+    var rows = Array.prototype.filter.call(document.querySelectorAll('#view-requests .req-row'), function (r) {
+      return r.offsetParent !== null;
+    });
     var row = rows[Math.min(idx, rows.length - 1)];
     var btn = row && row.querySelector('.req-del');
     if (btn) { btn.focus(); return true; }
