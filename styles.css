@@ -237,6 +237,10 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
 }
 .btn:hover { opacity: .88; }
 .btn:disabled { opacity: .45; cursor: progress; }
+/* 忙态用 aria-disabled 而不是原生 disabled：焦点留在按钮上，读屏也还能找到它。
+   不设 pointer-events:none——点击会穿透到父卡片，反而触发展开。 */
+button[aria-disabled="true"] { opacity: .45; cursor: progress; }
+button[aria-disabled="true"]:hover { opacity: .45; }
 .btn-block { width: 100%; margin-top: 12px; }
 
 .lock-err {
@@ -736,17 +740,29 @@ kbd {
 }
 
 /* 展开的完整对话。
-   用 grid-template-rows 0fr→1fr 做高度过渡：display 切换无法过渡，
-   而 max-height 猜数字会在长文上卡顿或截断。内层必须 overflow:hidden + min-height:0。 */
+   高度仍用 grid-template-rows 0fr→1fr 切换，但**不做过渡**：
+   逐帧过渡 grid-template-rows 就是在逐帧触发布局。展开动画只动内层的
+   opacity / transform（合成层），高度在一帧内到位，下面内容跟着跳一次。
+   不用 max-height 猜数字：长文会被截断，且改的值同样要布局。 */
 .fact-detail {
   display: grid;
   grid-template-rows: 0fr;
   grid-column: 1 / -1;
   margin-top: 0;
-  transition: grid-template-rows .28s cubic-bezier(.2, .8, .2, 1), margin-top .28s;
 }
-.fact-detail > .detail-inner { overflow: hidden; min-height: 0; }
+.fact-detail > .detail-inner {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .16s ease, transform .16s cubic-bezier(.2, .8, .2, 1);
+}
 .fact.open .fact-detail { grid-template-rows: 1fr; margin-top: 12px; }
+.fact.open .fact-detail > .detail-inner { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fact-detail > .detail-inner { transition: none; }
+}
 
 .detail-bar {
   display: flex;

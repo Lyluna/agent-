@@ -130,6 +130,79 @@
     }, isError ? 6000 : 3500);
   }
 
+  // ---------- 忙态与焦点 ----------
+  // 不用原生 disabled：它会立刻丢焦点，读屏也不再读到这个控件。
+  // aria-disabled 只表示「暂时不可再点」，焦点留着；aria-busy 让读屏知道正在写。
+  // 拦截重复触发仍要在处理器里判 isBusy，因为键盘 Enter 不认指针事件。
+  function busy(el, label) {
+    if (!el) return;
+    if (label != null) {
+      if (el.dataset.idleLabel == null) el.dataset.idleLabel = el.textContent;
+      el.textContent = label;
+    }
+    el.setAttribute('aria-disabled', 'true');
+    el.setAttribute('aria-busy', 'true');
+  }
+
+  function idle(el) {
+    if (!el) return;
+    if (el.dataset.idleLabel != null) {
+      el.textContent = el.dataset.idleLabel;
+      delete el.dataset.idleLabel;
+    }
+    el.removeAttribute('aria-busy');
+    el.removeAttribute('aria-disabled');
+  }
+
+  function isBusy(el) {
+    return !!el && el.getAttribute('aria-disabled') === 'true';
+  }
+
+  // 写成功后整块会重渲染，原来的按钮节点就没了。先记住「哪条待办 / 哪条存档」，
+  // 渲染完再按同一语义找回来，焦点不掉到 body。
+  function focusKey(el) {
+    if (!el) return null;
+    var row = el.closest('[data-task-row]');
+    if (row) return { task: row.getAttribute('data-task-row'), action: el.getAttribute('data-action') || '' };
+    var fact = el.closest('.fact');
+    if (fact) return { idx: Number(fact.getAttribute('data-idx')) };
+    return null;
+  }
+
+  function refocus(key) {
+    if (!key) return false;
+    if (key.task != null) {
+      var rows = [];
+      Array.prototype.forEach.call(document.querySelectorAll('[data-task-row]'), function (r) {
+        if (r.getAttribute('data-task-row') === key.task) rows.push(r);
+      });
+      var row = rows.filter(function (r) { return r.offsetParent !== null; })[0] || rows[0];
+      if (!row) return false;
+      var btn = key.action ? row.querySelector('[data-action="' + key.action + '"]') : null;
+      (btn || row).focus();
+      return true;
+    }
+    if (typeof key.idx === 'number') {
+      var facts = document.querySelectorAll('.fact');
+      var next = facts[Math.min(key.idx, facts.length - 1)];
+      if (next) { next.focus(); return true; }
+      var head = document.querySelector('#view-facts h2');
+      if (head) { head.setAttribute('tabindex', '-1'); head.focus(); return true; }
+    }
+    return false;
+  }
+
+  // 要求列表的行本身不可聚焦，焦点接管给同一行里剩下的操作按钮。
+  function refocusReq(idx) {
+    var rows = document.querySelectorAll('#view-requests .req-row');
+    var row = rows[Math.min(idx, rows.length - 1)];
+    var btn = row && row.querySelector('.req-del');
+    if (btn) { btn.focus(); return true; }
+    var head = document.querySelector('#view-requests h2');
+    if (head) { head.setAttribute('tabindex', '-1'); head.focus(); return true; }
+    return false;
+  }
+
   // 简单的高亮：把查询词包进 <strong>
   function mark(text, q) {
     var safe = esc(text);
@@ -1157,41 +1230,56 @@
   }
 
   function writeDelete(file, el) {
-    var restore = el.textContent;
-    el.disabled = true;
-    el.textContent = '删除中…';
+    if (isBusy(el)) return;
+    var focus = focusKey(el);
+    var fact = MEM.facts.filter(function (f) { return f.file === file; })[0];
+    busy(el, '删除中…');
     fetch('/api/archive/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file: file })
+      body: JSON.stringify({ file: file, sha: (fact && fact.sha) || '' })
     }).then(function (r) { return r.json(); }).then(function (res) {
+      // 打开页面后文件被别的 agent 改过：按旧版本删会连带删掉新内容，先停手
+      if (!res.ok && res.stale) {
+        if (fact && res.sha) fact.sha = res.sha;
+        idle(el);
+        toast('未删除：这条刚被改动过，刷新页面看看再决定', true);
+        return;
+      }
       if (!res.ok) throw new Error(res.error || '删除失败');
       MEM.facts = MEM.facts.filter(function (f) { return f.file !== file; });
       renderFacts();
       renderRail();
       renderHead();
       if (state.panel === 'overview') renderOverview();
+      refocus(focus);
     }).catch(function (err) {
-      el.disabled = false;
-      el.textContent = restore;
+      idle(el);
       toast('删除失败：' + err.message, true);
     });
   }
 
   function writeDeleteCloud(file, el) {
-    var restore = el.textContent;
-    el.disabled = true;
-    el.textContent = '删除中…';
-    cloudPost('/delete', { file: file }).then(function (res) {
+    if (isBusy(el)) return;
+    var focus = focusKey(el);
+    var fact = MEM.facts.filter(function (f) { return f.file === file; })[0];
+    busy(el, '删除中…');
+    cloudPost('/delete', { file: file, sha: (fact && fact.sha) || '' }).then(function (res) {
+      if (!res.ok && res.stale) {
+        if (fact && res.sha) fact.sha = res.sha;
+        idle(el);
+        toast('未删除：这条刚被改动过，刷新页面看看再决定', true);
+        return;
+      }
       if (!res.ok) throw new Error(res.error || '删除失败');
       MEM.facts = MEM.facts.filter(function (f) { return f.file !== file; });
       renderFacts();
       renderRail();
       renderHead();
       if (state.panel === 'overview') renderOverview();
+      refocus(focus);
     }).catch(function (err) {
-      el.disabled = false;
-      el.textContent = restore;
+      idle(el);
       toast('删除失败：' + err.message, true);
     });
   }
@@ -1625,8 +1713,9 @@
   }
 
   function writeEdit(task, action, kind, el) {
-    if (el.disabled) return;
-    el.disabled = true;
+    if (isBusy(el)) return;
+    var focus = focusKey(el);
+    busy(el);
     fetch('/api/edit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1644,15 +1733,17 @@
       renderRail();
       renderHead();
       if (state.panel === 'overview') renderOverview();
+      refocus(focus);
     }).catch(function (err) {
-      el.disabled = false;
+      idle(el);
       if (err && err.message) toast(err.message, true);
     });
   }
 
   function writeEditCloud(task, action, kind, el) {
-    if (el.disabled) return;
-    el.disabled = true;
+    if (isBusy(el)) return;
+    var focus = focusKey(el);
+    busy(el);
     cloudPost('/edit', { task: task, action: action, kind: kind, sha: editSha }).then(function (res) {
       if (!res.ok) throw new Error(res.error || '写入失败');
       if (res.sha) editSha = res.sha;
@@ -1662,18 +1753,18 @@
       renderRail();
       renderHead();
       if (state.panel === 'overview') renderOverview();
+      refocus(focus);
     }).catch(function (err) {
-      el.disabled = false;
+      idle(el);
       toast('云端写入失败：' + err.message, true);
     });
   }
 
   function writeStatus(task, action, el) {
-    var restore = el.textContent;
-    if (el.classList.contains('close-btn')) {
-      el.disabled = true;
-      el.textContent = '写入中…';
-    }
+    if (isBusy(el)) return;
+    var focus = focusKey(el);
+    var isClose = el.classList.contains('close-btn');
+    busy(el, isClose ? '写入中…' : null);
     fetch('/api/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1686,21 +1777,18 @@
       renderHead();
       if (state.panel === 'overview') renderOverview();
       if (!res.regenerated) console.warn('数据未重新生成：', res.log);
+      refocus(focus);
     }).catch(function (err) {
-      if (el.classList.contains('close-btn')) {
-        el.disabled = false;
-        el.textContent = restore;
-      }
+      idle(el);
       toast('写入失败：' + err.message, true);
     });
   }
 
   function writeStatusCloud(task, action, el) {
-    var restore = el.textContent;
-    if (el.classList.contains('close-btn')) {
-      el.disabled = true;
-      el.textContent = '写入中…';
-    }
+    if (isBusy(el)) return;
+    var focus = focusKey(el);
+    var isClose = el.classList.contains('close-btn');
+    busy(el, isClose ? '写入中…' : null);
     cloudPost('/todo', { task: task, action: action }).then(function (res) {
       if (!res.ok) throw new Error(res.error || '写入失败');
       applyOverride(task, action);
@@ -1708,11 +1796,9 @@
       renderRail();
       renderHead();
       if (state.panel === 'overview') renderOverview();
+      refocus(focus);
     }).catch(function (err) {
-      if (el.classList.contains('close-btn')) {
-        el.disabled = false;
-        el.textContent = restore;
-      }
+      idle(el);
       toast('云端写入失败：' + err.message + '（数据可能 1 分钟后才重新加密）', true);
     });
   }
@@ -1890,7 +1976,10 @@
   }
 
   function hideRequests(keys, el) {
-    if (el) { el.disabled = true; el.textContent = '…'; }
+    if (isBusy(el)) return;
+    var row = el && el.closest('.req-row');
+    var idx = row ? Number(row.getAttribute('data-idx')) : 0;
+    busy(el, '…');
     reqPost('/api/requests/delete', keys).then(function (res) {
       if (!res.ok) throw new Error(res.error || '删除失败');
       var gone = {};
@@ -1900,14 +1989,18 @@
       renderRequests();
       renderRail();
       toast('已隐藏 ' + keys.length + ' 条（存档未改动，可在「已隐藏」里恢复）');
+      refocusReq(idx);
     }).catch(function (err) {
-      if (el) { el.disabled = false; el.textContent = '删除'; }
+      idle(el);
       toast('删除失败：' + err.message, true);
     });
   }
 
   function restoreRequests(keys, el) {
-    if (el) { el.disabled = true; el.textContent = '…'; }
+    if (isBusy(el)) return;
+    var row = el && el.closest('.req-row');
+    var idx = row ? Number(row.getAttribute('data-idx')) : 0;
+    busy(el, '…');
     reqPost('/api/requests/restore', keys).then(function (res) {
       if (!res.ok) throw new Error(res.error || '恢复失败');
       var back = {};
@@ -1919,9 +2012,10 @@
           if (list.ok) MEM.requests = list.items;
           renderRequests();
           toast('已恢复 ' + keys.length + ' 条');
+          refocusReq(idx);
         });
     }).catch(function (err) {
-      if (el) { el.disabled = false; el.textContent = '恢复'; }
+      idle(el);
       toast('恢复失败：' + err.message, true);
     });
   }
@@ -2125,9 +2219,8 @@
   }
 
   function diskStartScan(btn) {
-    btn.disabled = true;
-    var label = btn.textContent;
-    btn.textContent = '已开始…';
+    if (isBusy(btn)) return;
+    busy(btn, '已开始…');
     diskPost('/api/disk/scan').then(function (res) {
       if (!res.ok) throw new Error(res.error || '启动失败');
       toast(res.message || '已开始扫描');
@@ -2141,16 +2234,16 @@
           var now = (diskState.data && diskState.data.run || {}).dir || '';
           if ((now && now !== before) || tries > 48) {
             clearInterval(diskState.polling);
-            btn.disabled = false;
-            btn.textContent = label;
+            idle(btn);
             renderDisk();
+            var again = $('diskScan');
+            if (again) again.focus();
             if (now && now !== before) toast('扫描完成，结果已更新');
           }
         });
       }, 5000);
     }).catch(function (err) {
-      btn.disabled = false;
-      btn.textContent = label;
+      idle(btn);
       toast('启动扫描失败：' + err.message, true);
     });
   }
@@ -2162,13 +2255,14 @@
   var LOCAL_DISK_URL = 'http://127.0.0.1:8771/?shot=disk';
 
   function diskOpenReview(btn) {
-    btn.disabled = true;
+    if (isBusy(btn)) return;
+    busy(btn);
     diskPost('/api/disk/review').then(function (res) {
       if (!res.ok) throw new Error(res.error || '打开失败');
       toast(res.message || '已打开审查页');
     }).catch(function (err) {
       toast('打开审查页失败：' + err.message, true);
-    }).then(function () { btn.disabled = false; });
+    }).then(function () { idle(btn); });
   }
 
   // ---------- 使用（每次会话用了什么） ----------
