@@ -209,6 +209,46 @@
     return false;
   }
 
+  // ---------- 确认面板 ----------
+  // 破坏性动作不靠 confirm()：它只能放一行字，说不清引用、恢复路径与影响范围，
+  // 而且 headless 下会阻塞渲染进程。原生 <dialog> 自带焦点圈定与 Esc。
+  var dlgEl = null;
+  function askDialog(opts) {
+    if (!dlgEl) {
+      dlgEl = document.createElement('dialog');
+      dlgEl.className = 'portal-dialog';
+      dlgEl.innerHTML = '<div class="dlg-inner">' +
+        '<h2 class="dlg-title"></h2><div class="dlg-body"></div>' +
+        '<div class="dlg-actions"><button type="button" class="text-btn dlg-cancel">取消</button>' +
+        '<button type="button" class="action-btn dlg-ok"></button></div></div>';
+      document.body.appendChild(dlgEl);
+    }
+    var title = dlgEl.querySelector('.dlg-title');
+    var body = dlgEl.querySelector('.dlg-body');
+    var ok = dlgEl.querySelector('.dlg-ok');
+    var cancel = dlgEl.querySelector('.dlg-cancel');
+    title.textContent = opts.title || '';
+    body.innerHTML = opts.body || '';
+    ok.textContent = opts.confirmLabel || '确定';
+    ok.className = 'action-btn dlg-ok' + (opts.danger ? ' danger' : '');
+    return new Promise(function (resolve) {
+      function finish(v) {
+        ok.onclick = null; cancel.onclick = null; dlgEl.oncancel = null;
+        if (dlgEl.open) dlgEl.close();
+        resolve(v);
+      }
+      ok.onclick = function () {
+        var input = body.querySelector('[data-dlg-input]');
+        finish(input ? input.value.trim() : true);
+      };
+      cancel.onclick = function () { finish(null); };
+      dlgEl.oncancel = function (e) { e.preventDefault(); finish(null); };
+      dlgEl.showModal();
+      var first = body.querySelector('textarea, input') || ok;
+      setTimeout(function () { first.focus(); }, 0);
+    });
+  }
+
   // 简单的高亮：把查询词包进 <strong>
   function mark(text, q) {
     var safe = esc(text);
@@ -597,6 +637,18 @@
     var live = MEM.facts.filter(function (f) { return f.status === '进行中'; }).length;
     var latest = MEM.facts[0] || {};
     var ds = MEM.sections.distilled || { count: 0 };
+    // 能力与可靠度：全部从现有字段算，不估、不补。
+    var verified = MEM.beliefs.filter(function (b) {
+      return /核验[：:]\s*已核验/.test(b.detail || b.statement || '');
+    }).length;
+    var beliefTotal = MEM.beliefs.length;
+    var verifyPct = beliefTotal ? Math.round(verified / beliefTotal * 100) : 0;
+    var memHealth = (MEM.health && MEM.health.memory) || {};
+    var checkTotal = memHealth.checks ? Object.keys(memHealth.checks).length : 0;
+    var checkPass = Math.max(checkTotal - (memHealth.failed_checks || 0), 0);
+    var agentList = MEM.agents || [];
+    var agentActive = agentList.filter(function (a) { return a.active; }).length;
+    var agentLast = agentList.map(function (a) { return a.last || ''; }).sort().pop() || '';
     var html = '<section class="welcome">' +
       '<div class="welcome-copy">' +
       '<h2>继续上次的思考，<br>找到这次能用的答案。</h2>' +
@@ -612,6 +664,17 @@
         '</div>' +
         '<div class="pulse-foot">' + (live ? live + ' 个对话仍在继续' : '当前没有进行中的对话') + '<span>' + (canWrite ? '本地可写 · 能开终端' : cloudReady() ? '云端写入已连接' : '只读浏览') + '</span></div>' +
       '</div></section>';
+
+    html += '<section class="cap-strip" aria-label="能力与可靠度">' +
+      '<div class="cap"><span class="cap-label">覆盖 Agent</span><b>' + agentList.length + ' 个</b>' +
+        '<span class="cap-sub">' + agentActive + ' 个进行中' + (agentLast ? ' · 最近 ' + esc(agentLast.slice(0, 10)) : '') + '</span></div>' +
+      '<div class="cap"><span class="cap-label">认知已核验</span><b>' + verified + ' / ' + beliefTotal + '</b>' +
+        '<span class="cap-sub">' + verifyPct + '% 写明实测或文档证据</span></div>' +
+      '<div class="cap"><span class="cap-label">记忆自检</span><b>' + checkPass + ' / ' + checkTotal + '</b>' +
+        '<span class="cap-sub">' + (memHealth.failed_checks || 0) + ' 项失败</span></div>' +
+      '<div class="cap"><span class="cap-label">事实存档</span><b>' + MEM.facts.length + ' 条</b>' +
+        '<span class="cap-sub">' + (ds.count || 0) + ' 条蒸馏结论可复用</span></div>' +
+      '</section>';
 
     if (MEM.tokens && MEM.tokens.totals && MEM.tokens.totals.records) {
       html += tokenSection(MEM.tokens);
@@ -1214,10 +1277,25 @@
       el.addEventListener('click', function (e) {
         e.stopPropagation();
         if (canWrite || cloudReady()) {
-          if (!confirm('删除这条对话存档？\n\n「' + el.dataset.title +
-            '」\n\n会移进 _已作废/，可随时恢复。')) return;
-          if (canWrite) writeDelete(el.dataset.file, el);
-          else writeDeleteCloud(el.dataset.file, el);
+          var f = MEM.facts.filter(function (x) { return x.file === el.dataset.file; })[0] || {};
+          var kb = f.detail_bytes ? Math.round(f.detail_bytes / 1024) + ' KB' : '';
+          askDialog({
+            title: '删除这条存档？',
+            body: '<p><b>「' + esc(el.dataset.title) + '」</b></p>' +
+              '<dl class="dlg-facts">' +
+                '<div><dt>时间</dt><dd>' + esc(f.date || '—') + '</dd></div>' +
+                '<div><dt>工具</dt><dd>' + esc(f.tool || '—') + '</dd></div>' +
+                (kb ? '<div><dt>正文</dt><dd>' + kb + '</dd></div>' : '') +
+                '<div><dt>影响</dt><dd>从时间线、关系图和首页「最新留档」移除；关联项目不再出现这条。</dd></div>' +
+                '<div><dt>恢复</dt><dd>原文整体移入 <span class="mono">_已作废/</span>，内容一字不改，可在文件系统里恢复。</dd></div>' +
+              '</dl>',
+            confirmLabel: '移入已作废',
+            danger: true
+          }).then(function (yes) {
+            if (!yes) return;
+            if (canWrite) writeDelete(el.dataset.file, el);
+            else writeDeleteCloud(el.dataset.file, el);
+          });
         } else {
           copyInstruction(el.dataset.file, 'delete', el);
         }
@@ -1299,9 +1377,20 @@
   function mergePicked() {
     if (picked.length < 2) { toast('至少选两条才能合并', true); return; }
     var first = MEM.facts.filter(function (f) { return f.file === picked[0]; })[0];
-    var name = prompt('把选中的 ' + picked.length + ' 条合成一条存档。\n\n合并后的主题：',
-      (first && first.title) || '合并对话');
+    var list = picked.map(function (file) {
+      var f = MEM.facts.filter(function (x) { return x.file === file; })[0];
+      return '<li>' + esc(f ? f.title : file) + '</li>';
+    }).join('');
+    askDialog({
+      title: '合并 ' + picked.length + ' 条存档？',
+      body: '<p>会生成一条新存档，来源条目整体移入 <span class="mono">_已作废/</span>，原文不改。</p>' +
+        '<ul class="dlg-list">' + list + '</ul>' +
+        '<label class="dlg-field">新主题<input data-dlg-input type="text" value="' +
+        esc((first && first.title) || '合并对话') + '"></label>',
+      confirmLabel: '开始合并'
+    }).then(function (name) {
     if (name === null) return;
+    if (!name) { toast('主题不能为空', true); return; }
     var url = canWrite ? '/api/archive/merge' : (cloud.base + '/merge');
     var opts = canWrite
       ? { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1333,6 +1422,7 @@
       toast('已合并为：' + res.merged + '（来源已移进 _已作废/）');
     }).catch(function (err) {
       toast('合并失败：' + err.message, true);
+    });
     });
   }
 
@@ -1938,15 +2028,28 @@
         var chips = '';
         if (k.category) chips += '<span class="kn-chip">' + esc(k.category) + '</span>';
         if (k.domain) chips += '<span class="kn-chip kn-chip-dim">' + esc(k.domain) + '</span>';
+        // AI / 人工状态位：origin 由 frontmatter 决定，缺省按 AI 整理（本库现状）。
+        var isHuman = k.origin === '人工';
+        var stateTxt = isHuman
+          ? (k.reviewed ? '人工修订 ' + k.reviewed : '人工撰写')
+          : (k.reviewed ? 'AI 整理 · 已复核' : 'AI 整理');
+        chips += '<span class="kn-chip kn-state' + (isHuman ? ' is-human' : '') + '">' + esc(stateTxt) + '</span>';
+        if (k.evidence) chips += '<span class="kn-chip kn-evidence">' + esc(k.evidence) + '</span>';
+        var fix = canWrite ? '<button class="text-btn kn-correct" data-correct="' + esc(k.file) +
+          '" data-title="' + esc(k.title) + '">纠正</button>' : '';
         var more = '';
         if (k.use) more += '<details class="kn-more"><summary>有什么用</summary><p>' + esc(k.use) + '</p></details>';
         if (k.learn) more += '<details class="kn-more"><summary>可以借鉴什么</summary><p>' + esc(k.learn) + '</p></details>';
         if (k.why) more += '<details class="kn-more"><summary>为什么是这样</summary><p>' + esc(k.why) + '</p></details>';
+        var src = '<details class="kn-src"><summary>依据</summary><p>' +
+          esc('来源：' + (k.source || '未写') + ' · 整理：' + (k.created || '未写') +
+              (k.evidence ? ' · 证据：' + k.evidence : '') + ' · 文件：' + (k.file || '')) +
+          '</p></details>';
         html += '<article class="kn-card">' +
-          '<div class="kn-head">' + chips + '<time>' + esc(k.created || '') + '</time></div>' +
+          '<div class="kn-head">' + chips + fix + '<time>' + esc(k.created || '') + '</time></div>' +
           '<h3>' + esc(k.title) + '</h3>' +
           '<p class="kn-what">' + esc(k.what || k.summary || '') + '</p>' +
-          more +
+          more + src +
           '</article>';
       });
       html += '</div>';

@@ -1490,6 +1490,24 @@ p, li, .fact-sum { text-wrap: pretty; }
 .pulse-flow i::after { content: ''; width: 4px; height: 4px; position: absolute; top: -1.5px; right: 0; border-radius: 50%; background: var(--signal); }
 .pulse-foot { border-top: 1px solid var(--border); padding-top: 12px; font-size: var(--fs-micro); color: var(--muted); }
 .pulse-foot span { float: right; color: var(--signal); }
+/* 首屏「能力与可靠度」：四项都能从现有数据直接算出，不做估算。
+   放首屏是因为「这份记忆能不能用」应该在第一次滚动前回答。 */
+.cap-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 0 var(--sp-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--border);
+  overflow: hidden;
+}
+.cap { display: flex; flex-direction: column; gap: 3px; padding: 16px 18px; background: var(--raised); }
+.cap .cap-label { font-size: var(--fs-micro); color: var(--muted); }
+.cap b { font-size: var(--fs-title); font-weight: 400; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.cap .cap-sub { font-size: var(--fs-micro); color: var(--faint); }
+@media (max-width: 900px) { .cap-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .cap-strip { grid-template-columns: 1fr; } }
 .overview-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(250px, 1fr); gap: clamp(28px, 4vw, 60px); padding: var(--sp-6) 0; }
 .section-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .section-heading h2 { font-size: var(--fs-body); font-weight: 600; letter-spacing: -0.01em; }
@@ -4233,3 +4251,63 @@ body {
 .sec-how summary:hover { color: var(--signal); }
 .sec-how[open] summary { margin-bottom: var(--sp-2); }
 .sec-how .sec-note { margin-bottom: 0; }
+
+/* ── 确认面板：破坏性动作说清影响与恢复路径 ── */
+.portal-dialog {
+  width: min(560px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .28);
+}
+.portal-dialog::backdrop { background: rgba(20, 18, 15, .45); }
+.dlg-inner { padding: 22px 22px 18px; }
+.dlg-title { margin: 0 0 10px; font-size: var(--fs-section); font-weight: 600; }
+.dlg-body { font-size: var(--fs-body); line-height: 1.65; color: var(--muted); }
+.dlg-body p { margin: 0 0 8px; }
+.dlg-body b { color: var(--ink); font-weight: 600; }
+.dlg-facts { display: grid; gap: 7px; margin: 14px 0 0; }
+.dlg-facts div { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; }
+.dlg-facts dt { color: var(--faint); font-size: var(--fs-small); }
+.dlg-facts dd { margin: 0; color: var(--ink); }
+.dlg-list { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.dlg-list li { font-size: var(--fs-small); color: var(--ink); }
+.dlg-field { display: block; margin-top: 14px; font-size: var(--fs-small); color: var(--muted); }
+.dlg-field input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 11px;
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+}
+.dlg-field textarea {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  margin-top: 6px;
+  padding: 9px 11px;
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+.dlg-actions { display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 20px; }
+.action-btn.danger { background: var(--warn); color: #fff; }
+
+/* AI / 人工状态位与依据：只做功能区分，不抢卡片标题 */
+.kn-state { border-color: var(--control); color: var(--signal); }
+.kn-state.is-human { background: var(--signal); color: var(--signal-ink, #fff); border-color: transparent; }
+.kn-evidence { border: 1px solid var(--border); background: transparent; }
+.kn-src { margin-top: 10px; font-size: var(--fs-small); }
+.kn-src summary { width: fit-content; color: var(--faint); cursor: pointer; }
+.kn-src summary:hover { color: var(--signal); }
+.kn-src p { margin: 6px 0 0; color: var(--muted); line-height: 1.6; }
+.kn-correct { margin-left: auto; padding: 0; font-size: var(--fs-micro); }
