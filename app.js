@@ -1200,10 +1200,10 @@
         'aria-label="选择合并" title="选择合并"></button>'
       : '';
     var del = '';
-    if (canWrite || cloudReady()) {
-      del = '<button class="del-btn" data-file="' + esc(f.file) + '" data-title="' +
-        esc(f.title) + '" aria-label="删除这条存档" title="删除这条存档">删除</button>';
-    }
+    // 删除入口不按可写性隐藏：只读快照下点它也会先出确认面板，
+    // 确认后复制一段本机命令。否则同一排按钮在两种环境下时有时无，用户以为功能丢了。
+    del = '<button class="del-btn" data-file="' + esc(f.file) + '" data-title="' +
+      esc(f.title) + '" aria-label="删除这条存档" title="删除这条存档">删除</button>';
     return '<div class="' + cls + '" tabindex="0" data-idx="' + i + '">' +
       '<div class="fact-date">' + esc(f.date) + '</div>' +
       '<div class="fact-main">' +
@@ -1302,29 +1302,39 @@
     Array.prototype.forEach.call(root.querySelectorAll('.del-btn'), function (el) {
       el.addEventListener('click', function (e) {
         e.stopPropagation();
-        if (canWrite || cloudReady()) {
-          var f = MEM.facts.filter(function (x) { return x.file === el.dataset.file; })[0] || {};
-          var kb = f.detail_bytes ? Math.round(f.detail_bytes / 1024) + ' KB' : '';
-          askDialog({
-            title: '删除这条存档？',
-            body: '<p><b>「' + esc(el.dataset.title) + '」</b></p>' +
-              '<dl class="dlg-facts">' +
-                '<div><dt>时间</dt><dd>' + esc(f.date || '—') + '</dd></div>' +
-                '<div><dt>工具</dt><dd>' + esc(f.tool || '—') + '</dd></div>' +
-                (kb ? '<div><dt>正文</dt><dd>' + kb + '</dd></div>' : '') +
-                '<div><dt>影响</dt><dd>从时间线、关系图和首页「最新留档」移除；关联项目不再出现这条。</dd></div>' +
-                '<div><dt>恢复</dt><dd>原文整体移入 <span class="mono">_已作废/</span>，内容一字不改，可在文件系统里恢复。</dd></div>' +
-              '</dl>',
-            confirmLabel: '移入已作废',
-            danger: true
-          }).then(function (yes) {
-            if (!yes) return;
-            if (canWrite) writeDelete(el.dataset.file, el);
-            else writeDeleteCloud(el.dataset.file, el);
-          });
-        } else {
-          copyInstruction(el.dataset.file, 'delete', el);
+        var writable = canWrite;
+        var cloud = !writable && cloudReady();
+        var f = MEM.facts.filter(function (x) { return x.file === el.dataset.file; })[0] || {};
+        var kb = f.detail_bytes ? Math.round(f.detail_bytes / 1024) + ' KB' : '';
+        // 只读快照也要先给面板：用户点的是一样「删除」，不能因为连了云端或没连
+        // 就在两种完全不同的交互之间跳（旧实现直接复制指令，看起来像没反应）。
+        var body = '<p><b>「' + esc(el.dataset.title) + '」</b></p>' +
+          '<dl class="dlg-facts">' +
+            '<div><dt>时间</dt><dd>' + esc(f.date || '—') + '</dd></div>' +
+            '<div><dt>工具</dt><dd>' + esc(f.tool || '—') + '</dd></div>' +
+            (kb ? '<div><dt>正文</dt><dd>' + kb + '</dd></div>' : '') +
+            '<div><dt>影响</dt><dd>从时间线、关系图和首页「最新留档」移除；关联项目不再出现这条。</dd></div>' +
+            '<div><dt>恢复</dt><dd>原文整体移入 <span class="mono">_已作废/</span>，内容一字不改，可在文件系统里恢复。</dd></div>' +
+          '</dl>';
+        if (!writable && !cloud) {
+          body = '<p><b>「' + esc(el.dataset.title) + '」</b></p>' +
+            '<dl class="dlg-facts">' +
+              '<div><dt>影响</dt><dd>从时间线、关系图和首页「最新留档」移除；关联项目不再出现这条。</dd></div>' +
+              '<div><dt>恢复</dt><dd>原文整体移入 <span class="mono">_已作废/</span>，内容一字不改。</dd></div>' +
+              '<div><dt>当前环境</dt><dd>这是只读快照，门户不能直接写文件；确认后会复制一段命令，在打开本机门户的终端里执行。</dd></div>' +
+            '</dl>';
         }
+        askDialog({
+          title: '删除这条存档？',
+          body: body,
+          confirmLabel: (writable || cloud) ? '移入已作废' : '复制删除指令',
+          danger: true
+        }).then(function (yes) {
+          if (!yes) return;
+          if (writable) writeDelete(el.dataset.file, el);
+          else if (cloud) writeDeleteCloud(el.dataset.file, el);
+          else copyInstruction(el.dataset.file, 'delete', el);
+        });
       });
     });
 
