@@ -1502,12 +1502,12 @@ p, li, .fact-sum { text-wrap: pretty; }
   background: var(--border);
   overflow: hidden;
 }
-.cap { display: flex; flex-direction: column; gap: 3px; padding: 16px 18px; background: var(--raised); }
+.cap { display: flex; flex-direction: column; gap: 4px; padding: 16px; background: var(--raised); }
 .cap .cap-label { font-size: var(--fs-micro); color: var(--muted); }
 .cap b { font-size: var(--fs-title); font-weight: 400; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .cap .cap-sub { font-size: var(--fs-micro); color: var(--faint); }
 @media (max-width: 900px) { .cap-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { .cap-strip { grid-template-columns: 1fr; } }
+@media (max-width: 360px) { .cap-strip { grid-template-columns: 1fr; } }
 .overview-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(250px, 1fr); gap: clamp(28px, 4vw, 60px); padding: var(--sp-6) 0; }
 .section-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .section-heading h2 { font-size: var(--fs-body); font-weight: 600; letter-spacing: -0.01em; }
@@ -4263,23 +4263,23 @@ body {
   box-shadow: 0 24px 60px rgba(0, 0, 0, .28);
 }
 .portal-dialog::backdrop { background: rgba(20, 18, 15, .45); }
-.dlg-inner { padding: 22px 22px 18px; }
-.dlg-title { margin: 0 0 10px; font-size: var(--fs-section); font-weight: 600; }
-.dlg-body { font-size: var(--fs-body); line-height: 1.65; color: var(--muted); }
+.dlg-inner { padding: 24px 24px 16px; }
+.dlg-title { margin: 0 0 12px; font-size: var(--fs-section); font-weight: 600; }
+.dlg-body { font-size: var(--fs-body); line-height: 1.6; color: var(--muted); }
 .dlg-body p { margin: 0 0 8px; }
 .dlg-body b { color: var(--ink); font-weight: 600; }
-.dlg-facts { display: grid; gap: 7px; margin: 14px 0 0; }
-.dlg-facts div { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; }
+.dlg-facts { display: grid; gap: 8px; margin: 16px 0 0; }
+.dlg-facts div { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; }
 .dlg-facts dt { color: var(--faint); font-size: var(--fs-small); }
 .dlg-facts dd { margin: 0; color: var(--ink); }
-.dlg-list { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.dlg-list { margin: 8px 0 0; padding-left: 16px; display: grid; gap: 4px; }
 .dlg-list li { font-size: var(--fs-small); color: var(--ink); }
-.dlg-field { display: block; margin-top: 14px; font-size: var(--fs-small); color: var(--muted); }
+.dlg-field { display: block; margin-top: 16px; font-size: var(--fs-small); color: var(--muted); }
 .dlg-field input {
   display: block;
   width: 100%;
-  margin-top: 6px;
-  padding: 9px 11px;
+  margin-top: 8px;
+  padding: 8px 12px;
   border: 1px solid var(--control);
   border-radius: var(--radius-control);
   background: var(--raised);
@@ -4290,8 +4290,8 @@ body {
   display: block;
   width: 100%;
   min-height: 96px;
-  margin-top: 6px;
-  padding: 9px 11px;
+  margin-top: 8px;
+  padding: 8px 12px;
   border: 1px solid var(--control);
   border-radius: var(--radius-control);
   background: var(--raised);
@@ -4299,15 +4299,15 @@ body {
   font: inherit;
   resize: vertical;
 }
-.dlg-actions { display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 20px; }
+.dlg-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 24px; }
 .action-btn.danger { background: var(--warn); color: #fff; }
 
 /* AI / 人工状态位与依据：只做功能区分，不抢卡片标题 */
 .kn-state { border-color: var(--control); color: var(--signal); }
 .kn-state.is-human { background: var(--signal); color: var(--signal-ink, #fff); border-color: transparent; }
 .kn-evidence { border: 1px solid var(--border); background: transparent; }
-.kn-src { margin-top: 10px; font-size: var(--fs-small); }
+.kn-src { margin-top: 8px; font-size: var(--fs-small); }
 .kn-src summary { width: fit-content; color: var(--faint); cursor: pointer; }
 .kn-src summary:hover { color: var(--signal); }
-.kn-src p { margin: 6px 0 0; color: var(--muted); line-height: 1.6; }
+.kn-src p { margin: 8px 0 0; color: var(--muted); line-height: 1.6; }
 .kn-correct { margin-left: auto; padding: 0; font-size: var(--fs-micro); }

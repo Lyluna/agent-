@@ -217,8 +217,9 @@
     if (!dlgEl) {
       dlgEl = document.createElement('dialog');
       dlgEl.className = 'portal-dialog';
+      dlgEl.setAttribute('aria-labelledby', 'dlgTitle');
       dlgEl.innerHTML = '<div class="dlg-inner">' +
-        '<h2 class="dlg-title"></h2><div class="dlg-body"></div>' +
+        '<h2 class="dlg-title" id="dlgTitle"></h2><div class="dlg-body"></div>' +
         '<div class="dlg-actions"><button type="button" class="text-btn dlg-cancel">取消</button>' +
         '<button type="button" class="action-btn dlg-ok"></button></div></div>';
       document.body.appendChild(dlgEl);
@@ -2004,6 +2005,7 @@
           if (state.panel === 'intents') renderIntents();
           else if (state.panel === 'facts') renderFacts();
           else if (state.panel === 'overview') renderOverview();
+          else if (state.panel === 'knowledge') renderKnowledge();
         }
       })
       .catch(function () {});
