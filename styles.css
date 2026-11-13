@@ -4311,3 +4311,17 @@ body {
 .kn-src summary:hover { color: var(--signal); }
 .kn-src p { margin: 8px 0 0; color: var(--muted); line-height: 1.6; }
 .kn-correct { margin-left: auto; padding: 0; font-size: var(--fs-micro); }
+
+/* 纠正队列：头部入口、卡片标记、队列对话框 */
+.kn-queue { margin-left: 12px; padding: 0; font-size: var(--fs-micro); }
+.kn-flag { border-color: var(--control); color: var(--warn); }
+.corr-list { display: grid; gap: 16px; margin-top: 16px; max-height: 55vh; overflow: auto; }
+.corr-item { border: 1px solid var(--border); border-radius: var(--radius-control); padding: 12px; }
+.corr-item.is-resolved { opacity: .55; }
+.corr-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.corr-top b { font-size: var(--fs-small); }
+.corr-top time { color: var(--faint); font-size: var(--fs-micro); }
+.corr-note { margin: 8px 0 0; font-size: var(--fs-small); line-height: 1.6; color: var(--ink); }
+.corr-meta { margin-top: 4px; color: var(--faint); font-size: var(--fs-micro); word-break: break-all; }
+.corr-actions { display: flex; gap: 16px; margin-top: 8px; }
+.corr-done { color: var(--faint); font-size: var(--fs-small); }

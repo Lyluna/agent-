@@ -232,9 +232,25 @@
     body.innerHTML = opts.body || '';
     ok.textContent = opts.confirmLabel || '确定';
     ok.className = 'action-btn dlg-ok' + (opts.danger ? ' danger' : '');
+    // 原生 dialog 的模态语义在部分浏览器/自动化输入下仍会让 Tab 跑到浏览器 UI；
+    // 这里显式兜住首尾，保证键盘用户不会掉出面板。
+    dlgEl.onkeydown = function (e) {
+      if (e.key !== 'Tab') return;
+      var f = Array.prototype.filter.call(
+        dlgEl.querySelectorAll('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'),
+        function (el) { return !el.disabled && el.offsetParent !== null; });
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      var a = document.activeElement;
+      if (e.shiftKey && (a === first || !dlgEl.contains(a))) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && (a === last || !dlgEl.contains(a))) {
+        e.preventDefault(); first.focus();
+      }
+    };
     return new Promise(function (resolve) {
       function finish(v) {
-        ok.onclick = null; cancel.onclick = null; dlgEl.oncancel = null;
+        ok.onclick = null; cancel.onclick = null; dlgEl.oncancel = null; dlgEl.onkeydown = null;
         if (dlgEl.open) dlgEl.close();
         resolve(v);
       }
@@ -272,6 +288,91 @@
       }).catch(function (err) {
         toast('纠正提交失败：' + err.message, true);
       });
+    });
+  }
+
+  // 纠正队列：待裁决的意见集中处理。采纳只改队列状态，正文仍由人改。
+  function refreshCorrections(btn) {
+    fetch('/api/corrections', { cache: 'no-store' }).then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) return;
+        var n = res.pending || 0;
+        if (btn) btn.textContent = n ? '纠正队列 · ' + n : '纠正队列';
+        var files = {};
+        (res.items || []).forEach(function (x) { files[x.file] = true; });
+        var cards = document.querySelectorAll('#view-knowledge .kn-card');
+        Array.prototype.forEach.call(cards, function (card) {
+          var head = card.querySelector('.kn-head');
+          if (!head) return;
+          var flag = head.querySelector('.kn-flag');
+          if (files[card.getAttribute('data-file')]) {
+            if (!flag) {
+              flag = document.createElement('span');
+              flag.className = 'kn-chip kn-flag';
+              flag.textContent = '有待处理纠正';
+              head.insertBefore(flag, head.firstChild);
+            }
+          } else if (flag) {
+            flag.remove();
+          }
+        });
+      }).catch(function () {});
+  }
+
+  function openCorrectionQueue() {
+    fetch('/api/corrections', { cache: 'no-store' }).then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.error || '读取失败');
+        var items = res.items || [];
+        if (!items.length) { toast('没有待处理的纠正'); return; }
+        var titles = {};
+        (MEM.knowledge || []).forEach(function (k) { titles[k.file] = k.title; });
+        var body = '<p class="sec-note">采纳 / 驳回只改队列状态，不改结论正文；正文仍由人确认后修订。</p>' +
+          '<div class="corr-list">' + items.map(function (x) {
+            var title = titles[x.file] || x.file;
+            return '<div class="corr-item" data-row="' + esc(x.id) + '">' +
+              '<div class="corr-top"><b>' + esc(title) + '</b><time>' + esc(x.ts || '') + '</time></div>' +
+              '<p class="corr-note">' + esc(x.note || '') + '</p>' +
+              '<div class="corr-meta">' + esc(x.file || '') + '</div>' +
+              '<div class="corr-actions">' +
+                '<button type="button" class="text-btn" data-resolve="accept" data-id="' + esc(x.id) + '">采纳</button>' +
+                '<button type="button" class="text-btn" data-resolve="reject" data-id="' + esc(x.id) + '">驳回</button>' +
+              '</div></div>';
+          }).join('') + '</div>';
+        askDialog({ title: '纠正队列 · ' + items.length + ' 条', body: body, confirmLabel: '关闭' });
+        var bodyEl = dlgEl.querySelector('.dlg-body');
+        bodyEl.onclick = function (e) {
+          var b = e.target.closest('[data-resolve]');
+          if (!b) return;
+          resolveCorrection(b.dataset.id, b.dataset.resolve, b);
+        };
+      }).catch(function (err) {
+        toast('读取纠正队列失败：' + err.message, true);
+      });
+  }
+
+  function resolveCorrection(id, action, btn) {
+    if (isBusy(btn)) return;
+    busy(btn, action === 'accept' ? '采纳中…' : '驳回中…');
+    fetch('/api/corrections/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id, action: action })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || '处理失败');
+      var row = dlgEl.querySelector('.corr-item[data-row="' + id + '"]');
+      if (row) {
+        row.classList.add('is-resolved');
+        var acts = row.querySelector('.corr-actions');
+        if (acts) acts.innerHTML = '<span class="corr-done">' +
+          (action === 'accept' ? '已采纳' : '已驳回') + '</span>';
+      }
+      toast(action === 'accept' ? '已采纳，正文仍待人工修订' : '已驳回');
+      var qb = $('view-knowledge') && $('view-knowledge').querySelector('#knQueue');
+      if (qb) refreshCorrections(qb);
+    }).catch(function (err) {
+      idle(btn);
+      toast('处理失败：' + err.message, true);
     });
   }
 
@@ -1247,6 +1348,9 @@
         toggle();
       });
       el.addEventListener('keydown', function (e) {
+        // 行内按钮的 Enter/Space 要留给按钮自己：否则 preventDefault 会拦掉
+        // 按钮的默认激活（键盘用户永远点不到「删除」，只能展开卡片）。
+        if (e.target.closest('button, a, input, textarea, summary')) return;
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
       });
       // 指针柔光的坐标。只在精确指向设备上生效，触屏的 pointermove 会被 CSS 挡掉。
@@ -2057,7 +2161,9 @@
 
     var kn = MEM.knowledge || [];
     var html = '<div class="sec-label"><h2>可复用结论</h2>' +
-      '<span class="count">' + (kn.length || ds.count || 0) + ' 条</span></div>';
+      '<span class="count">' + (kn.length || ds.count || 0) + ' 条</span>' +
+      (canWrite ? '<button type="button" class="text-btn kn-queue" id="knQueue">纠正队列</button>' : '') +
+      '</div>';
     html += '<p class="sec-note">一条知识一个文件，正文要答四件事：是什么、有什么用、可以借鉴什么、为什么是这样。点开看细节。</p>';
     if (kn.length) {
       html += '<div class="kn-grid">';
@@ -2082,7 +2188,7 @@
           esc('来源：' + (k.source || '未写') + ' · 整理：' + (k.created || '未写') +
               (k.evidence ? ' · 证据：' + k.evidence : '') + ' · 文件：' + (k.file || '')) +
           '</p></details>';
-        html += '<article class="kn-card">' +
+        html += '<article class="kn-card" data-file="' + esc(k.file || '') + '">' +
           '<div class="kn-head">' + chips + fix + '<time>' + esc(k.created || '') + '</time></div>' +
           '<h3>' + esc(k.title) + '</h3>' +
           '<p class="kn-what">' + esc(k.what || k.summary || '') + '</p>' +
@@ -2110,6 +2216,11 @@
         openCorrection(btn.dataset.correct, btn.dataset.title);
       });
     });
+    var qb = $('view-knowledge').querySelector('#knQueue');
+    if (qb) {
+      qb.addEventListener('click', openCorrectionQueue);
+      refreshCorrections(qb);
+    }
   }
 
 
