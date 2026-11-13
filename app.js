@@ -249,6 +249,31 @@
     });
   }
 
+  // 纠正不直接改正文：写进 _agent/corrections.jsonl，等下一次整理处理。
+  // 这样「AI 产出的结论」与「人对它的异议」分开存，谁都能回看原话。
+  function openCorrection(file, title) {
+    askDialog({
+      title: '纠正这条结论',
+      body: '<p>针对「' + esc(title) + '」。纠正不会直接改正文，会登记到待裁决队列，由下一次整理处理。</p>' +
+        '<label class="dlg-field">哪里不对、应该改成什么<textarea data-dlg-input ' +
+        'placeholder="例：这条只适用于桌面端，触屏下不成立"></textarea></label>',
+      confirmLabel: '提交纠正'
+    }).then(function (note) {
+      if (note === null) return;
+      if (!note) { toast('写一句纠正内容再提交', true); return; }
+      fetch('/api/corrections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: file, note: note })
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        if (!res.ok) throw new Error(res.error || '提交失败');
+        toast('已提交纠正，等待处理');
+      }).catch(function (err) {
+        toast('纠正提交失败：' + err.message, true);
+      });
+    });
+  }
+
   // 简单的高亮：把查询词包进 <strong>
   function mark(text, q) {
     var safe = esc(text);
@@ -2068,6 +2093,11 @@
     html += tableSection(tl, '还没有登记工具');
 
     $('view-knowledge').innerHTML = html;
+    Array.prototype.forEach.call($('view-knowledge').querySelectorAll('[data-correct]'), function (btn) {
+      btn.addEventListener('click', function () {
+        openCorrection(btn.dataset.correct, btn.dataset.title);
+      });
+    });
   }
 
 
