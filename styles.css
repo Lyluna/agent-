@@ -4325,3 +4325,26 @@ body {
 .corr-meta { margin-top: 4px; color: var(--faint); font-size: var(--fs-micro); word-break: break-all; }
 .corr-actions { display: flex; gap: 16px; margin-top: 8px; }
 .corr-done { color: var(--faint); font-size: var(--fs-small); }
+
+/* ============================================================
+   2026-11-25 门户整理：入口收口、防折行与溢出、分类筛选条
+   ============================================================ */
+.welcome-actions { flex-wrap: wrap; }
+.welcome-actions .action-btn,
+.welcome-actions .text-btn { white-space: nowrap; flex-shrink: 0; }
+.view { overflow-x: clip; }
+.rail-item[data-view="system"] {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-chip) var(--radius-chip);
+}
+#view-cloud .usage-stats {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.fact-cat-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  width: 100%;
+}

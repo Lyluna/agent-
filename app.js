@@ -11,10 +11,11 @@
   var MEM = { profile: {}, facts: [], beliefs: [], beliefCategories: [],
               intents: [], sections: {} };
   var state = {
-    view: 'overview',      // 导航入口（6 个之一）
+    view: 'overview',      // 导航入口（7 个之一）
     panel: 'overview',     // 真正在渲染的分区；等于 state.view 时没有 tab
     tabs: {},              // 每个入口上次打开的 tab，切回去还停在原处
     tool: 'all',
+    factCat: 'all',        // 事实时间线的主题分类筛选（学业 / 记忆与AI系统 / …）
     agent: 'all',
     category: 'all',
     catOpen: false,        // 认知页的分类筛选是否已展开
@@ -24,18 +25,17 @@
     paletteHits: []
   };
 
-  // 16 个分区收成 8 个入口。合并的原则是「回答同一个问题」：
-  // 事实 / 认知 / 待办都在回答「我记得什么」，使用 / 磁盘都在回答「这套系统自己怎么样」。
+  // 16 个分区收成 7 个入口（6 个日常工作区 + 底部「系统与健康」）：
+  // 事实 / 认知 / 待办都在回答「我记得什么」，运维与自检统一收进「系统与健康」。
   // 「要求」不并进「知识」——它是用户提过什么，和总结出来的知识不是一回事（用户 2026-10-28 定）。
   var VIEWS = [
     { id: 'overview',  label: '概览', icon: 'grid',  panels: ['overview'] },
-  { id: 'work',      label: '项目', icon: 'board', panels: ['work'] },
+    { id: 'work',      label: '项目', icon: 'board', panels: ['work'] },
     { id: 'memory',    label: '记忆', icon: 'clock', panels: ['facts', 'beliefs', 'intents'] },
     { id: 'knowledge', label: '知识', icon: 'drop',  panels: ['knowledge'] },
     { id: 'requests',  label: '要求', icon: 'check', panels: ['requests'] },
-    { id: 'health',    label: '健康', icon: 'pulse', panels: ['decide', 'health', 'evidence', 'assets', 'usage'] },
     { id: 'graph',     label: '关系', icon: 'graph', panels: ['graph'] },
-    { id: 'system',    label: '系统', icon: 'tool', panels: ['cloud', 'disk', 'agents'] }
+    { id: 'system',    label: '系统与健康', icon: 'tool', panels: ['decide', 'health', 'evidence', 'assets', 'usage', 'cloud', 'disk', 'agents'] }
   ];
 
   var PANEL_LABEL = {
@@ -72,6 +72,14 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+  }
+
+  // 安全行内 Markdown 渲染：先 HTML 转义再替换加粗、删除线与行内代码
+  function inlineMd(s) {
+    return esc(s)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
   }
 
   function icon(name) {
@@ -451,9 +459,8 @@
                  (MEM.sections.skills ? MEM.sections.skills.count : 0) +
                  (MEM.sections.tools ? MEM.sections.tools.count : 0),
       requests: (MEM.requests || []).filter(function (r) { return r.kind === 'request'; }).length,
-      health: (MEM.health && MEM.health.decide ? MEM.health.decide.count : 0) || 0,
       graph: 0,
-      system: (MEM.cloud && MEM.cloud.today ? MEM.cloud.today.calls : 0) || 0
+      system: (MEM.health && MEM.health.decide ? MEM.health.decide.count : 0) || 0
     };
 
     $('railNav').innerHTML = VIEWS.map(function (v) {
@@ -641,15 +648,19 @@
     $('pageMeta').innerHTML = meta.join('');
   }
 
-  // ---------- 工具筛选 ----------
+  // ---------- 工具与主题分类筛选 ----------
   function renderToolFilter() {
     var tools = [];
+    var catOrder = ['学业', '记忆与AI系统', '内容与运营', '工程开发', '其他'];
+    var catCounts = {};
     MEM.facts.forEach(function (f) {
       if (f.tool && tools.indexOf(f.tool) === -1) tools.push(f.tool);
+      var c = f.category || '其他';
+      catCounts[c] = (catCounts[c] || 0) + 1;
     });
 
     var html = '<button class="chip" data-tool="all" aria-pressed="' +
-      (state.tool === 'all') + '">全部<span class="c">' + MEM.facts.length + '</span></button>';
+      (state.tool === 'all') + '">全部工具<span class="c">' + MEM.facts.length + '</span></button>';
 
     tools.forEach(function (t) {
       var n = MEM.facts.filter(function (f) { return f.tool === t; }).length;
@@ -657,12 +668,35 @@
         (state.tool === t) + '">' + esc(t) + '<span class="c">' + n + '</span></button>';
     });
 
+    var cats = catOrder.filter(function (c) { return catCounts[c]; });
+    Object.keys(catCounts).forEach(function (c) { if (cats.indexOf(c) === -1) cats.push(c); });
+    if (cats.length > 1) {
+      html += '<div class="fact-cat-bar" role="group" aria-label="按主题分类筛选">' +
+        '<button class="chip" data-fact-cat="all" aria-pressed="' +
+        (state.factCat === 'all') + '">全部分类<span class="c">' + MEM.facts.length + '</span></button>';
+      cats.forEach(function (c) {
+        html += '<button class="chip" data-fact-cat="' + esc(c) + '" aria-pressed="' +
+          (state.factCat === c) + '">' + esc(c) + '<span class="c">' + catCounts[c] + '</span></button>';
+      });
+      html += '</div>';
+    }
+
     $('toolFilter').innerHTML = html;
     Array.prototype.forEach.call(
-      $('toolFilter').querySelectorAll('.chip'),
+      $('toolFilter').querySelectorAll('.chip[data-tool]'),
       function (el) {
         el.addEventListener('click', function () {
           state.tool = el.dataset.tool;
+          renderToolFilter();
+          renderFacts();
+        });
+      }
+    );
+    Array.prototype.forEach.call(
+      $('toolFilter').querySelectorAll('.chip[data-fact-cat]'),
+      function (el) {
+        el.addEventListener('click', function () {
+          state.factCat = el.dataset.factCat;
           renderToolFilter();
           renderFacts();
         });
@@ -707,16 +741,19 @@
       return esc(s.label || s.name) + ' ' + fmtTokens(s.tokens);
     }).join(' · ');
 
+    var winFrom = ((days[0] || {}).date || range.from || '').slice(5);
+    var winTo = ((days[days.length - 1] || {}).date || '').slice(5);
+    var winLabel = winFrom && winTo ? (winFrom + ' ~ ' + winTo) : (winFrom + ' 起');
     return '<section class="overview-tokens" aria-label="token 用量">' +
       '<div class="section-heading"><span class="section-number">01</span><h2>用量</h2>' +
-      '<span class="sec-note">' + esc((range.from || '').slice(5)) + ' 起 ' + span +
-      ' 天 · token-lens 账本 ' + esc((tk.generated_at || '').slice(11)) + ' 更新</span></div>' +
+      '<span class="sec-note">近 ' + days.length + ' 天（' + esc(winLabel) + '）· 全量账本 ' +
+      (t.sessions || 0) + ' 会话 · ' + esc((tk.generated_at || '').slice(11)) + ' 更新</span></div>' +
       '<div class="token-board">' +
         '<div class="token-hero">' +
           '<div class="token-hero-main">' +
             '<span class="token-k">近 30 天消耗</span>' +
             '<b class="token-big">' + fmtTokens(last30.tokens) + '</b>' +
-            '<span class="token-sub">日均 ' + fmtTokens(perDay) + ' · ' + (last30.sessions || 0) + ' 个会话</span>' +
+            '<span class="token-sub">日均 ' + fmtTokens(perDay) + ' · 近 30 天 ' + (last30.sessions || 0) + ' 个会话</span>' +
           '</div>' +
           '<div class="token-hero-today">' +
             '<span class="token-k">今天</span>' +
@@ -725,13 +762,13 @@
           '</div>' +
         '</div>' +
         '<div class="token-kpis">' +
-          '<div class="token-kpi warm"><span class="token-k">缓存命中率</span>' +
+          '<div class="token-kpi warm"><span class="token-k">全量缓存命中率</span>' +
             '<b class="token-v">' + fmtPct(tk.cache_hit_ratio) + '</b>' +
-            '<span class="token-note">输入里走缓存的比例</span></div>' +
-          '<div class="token-kpi"><span class="token-k">估算花费</span>' +
+            '<span class="token-note">全量输入里走缓存的比例</span></div>' +
+          '<div class="token-kpi"><span class="token-k">全量估算花费</span>' +
             '<b class="token-v">$' + (cost.usd || 0).toFixed(2) + '</b>' +
-            '<span class="token-note">仅 ' + fmtPct(cost.priced_ratio) + ' 记录有公开价</span></div>' +
-          '<div class="token-kpi"><span class="token-k">输入 / 输出</span>' +
+            '<span class="token-note">全量 ' + (t.sessions || 0) + ' 会话 · ' + fmtPct(cost.priced_ratio) + ' 有公开价</span></div>' +
+          '<div class="token-kpi"><span class="token-k">全量输入 / 输出</span>' +
             '<b class="token-v">' + fmtPair(t.input, t.output) + '</b>' +
             '<span class="token-note">另有 ' + fmtTokens(t.cache_read) + ' 缓存读取</span></div>' +
         '</div>' +
@@ -764,11 +801,15 @@
     var live = MEM.facts.filter(function (f) { return f.status === '进行中'; }).length;
     var latest = MEM.facts[0] || {};
     var ds = MEM.sections.distilled || { count: 0 };
-    // 能力与可靠度：全部从现有字段算，不估、不补。
-    var verified = MEM.beliefs.filter(function (b) {
-      return /核验[：:]\s*已核验/.test(b.detail || b.statement || '');
-    }).length;
-    var beliefTotal = MEM.beliefs.length;
+    // 能力与可靠度：优先复用后端证据快照的核验计数，保证与「证据新鲜度」同源不打架
+    var evCred = MEM.health && MEM.health.evidence && MEM.health.evidence.credibility;
+    var verified = (evCred && evCred.by_status && typeof evCred.by_status['已核验'] === 'number')
+      ? evCred.by_status['已核验']
+      : MEM.beliefs.filter(function (b) {
+          return /核验[：:]\s*已核验/.test(b.detail || b.statement || '');
+        }).length;
+    var beliefTotal = (evCred && typeof evCred.total === 'number' && evCred.total > 0)
+      ? evCred.total : MEM.beliefs.length;
     var verifyPct = beliefTotal ? Math.round(verified / beliefTotal * 100) : 0;
     var memHealth = (MEM.health && MEM.health.memory) || {};
     var checkTotal = memHealth.checks ? Object.keys(memHealth.checks).length : 0;
@@ -1568,7 +1609,9 @@
 
   function renderFacts() {
     var list = MEM.facts.filter(function (f) {
-      return state.tool === 'all' || f.tool === state.tool;
+      var okTool = state.tool === 'all' || f.tool === state.tool;
+      var okCat = state.factCat === 'all' || (f.category || '其他') === state.factCat;
+      return okTool && okCat;
     });
 
     var html = '<div class="sec-label"><h2>事实时间线</h2>' +
@@ -1753,7 +1796,7 @@
 
     return '<div class="' + cls + '" data-task-row="' + esc(t.task) + '" tabindex="-1">' +
       box +
-      '<div class="intent-text">' + esc(t.task) + ' ' + stateTag(t) + '</div>' +
+      '<div class="intent-text">' + inlineMd(t.task) + ' ' + stateTag(t) + '</div>' +
       '<div class="intent-act">' + action + '</div>' +
       '<div class="intent-prio ' + esc(t.priority || '') + '">' + esc(label) + '</div>' +
     '</div>';
@@ -2382,7 +2425,7 @@
           '<span class="req-time num">' + esc(r.time || '--:--') + '</span>' +
           '<span class="req-kind ' + (r.kind === 'ack' ? 'is-ack' : '') + '">' +
             (r.kind === 'ack' ? '回执' : '要求') + '</span>' +
-          '<span class="req-text">' + esc(r.text) + '</span>' +
+          '<span class="req-text">' + inlineMd(r.text) + '</span>' +
           '<span class="req-src">' + esc(r.file) + '</span>' +
           btn +
           '</div>';
@@ -2756,7 +2799,7 @@
 
     var html = '<div class="sec-label"><h2>记忆健康度</h2>' +
       '<span class="count">' + (m.ok ? '门禁通过' : m.error_count + ' 项错误') + '</span></div>' +
-      '<p class="sec-note">直接复用 <code>check_memory.py</code> 的 13 项门禁，门户不另写一套规则。' +
+      '<p class="sec-note">直接复用 <code>check_memory.py</code> 的 ' + names.length + ' 项门禁，门户不另写一套规则。' +
       '冷启动预算、启动清单、镜像新鲜度、技术决策核验、待办状态、断链都在里面。</p>';
 
     html += '<div class="usage-stats">' +
@@ -3305,6 +3348,8 @@
   var INDEX = [];
 
   function openPalette() {
+    var cp = document.getElementById('cloudPanel');
+    if (cp) cp.remove();
     $('palette').classList.add('open');
     $('paletteInput').value = '';
     state.paletteIndex = 0;
@@ -3432,11 +3477,18 @@
         e.preventDefault();
         $('palette').classList.contains('open') ? closePalette() : openPalette();
       }
-      if (e.key === 'Escape' && $('palette').classList.contains('open')) closePalette();
-      // 数字键 1-8 跳入口（不在输入框里时）。入口从 10 个收到 8 个，键位跟着收
-      if (!mod && /^[1-8]$/.test(e.key) &&
+      if (e.key === 'Escape') {
+        if ($('palette').classList.contains('open')) closePalette();
+        var cp = document.getElementById('cloudPanel');
+        if (cp) cp.remove();
+        var dr = $('projectDrawer');
+        if (dr && !dr.hidden) closeDrawer();
+      }
+      // 数字键 1-7 跳入口（不在输入框里时）。入口收口为 7 个，键位跟着收
+      if (!mod && /^[1-7]$/.test(e.key) &&
           !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
-        setView(VIEWS[parseInt(e.key, 10) - 1].id);
+        var targetView = VIEWS[parseInt(e.key, 10) - 1];
+        if (targetView) setView(targetView.id);
       }
     });
   }

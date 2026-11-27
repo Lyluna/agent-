@@ -27,10 +27,13 @@
     return ids;
   }
   function isRoot(n) { return ROOT_KINDS[n.kind]; }
-  // 列表始终列全部节点（按类型筛选），只有地图用「焦点 + 邻居」，两者分工不同。
+  // 列表默认只展示有显式关联的节点，避免 600+ 零关联孤点把列表冲成白板
   function visible() {
-    if (selectedKind === 'all') return graph.nodes.slice();
-    return graph.nodes.filter(function (n) { return n.kind === selectedKind; });
+    var base = graph.links.length
+      ? graph.nodes.filter(function (n) { return connected(n).length > 0; })
+      : graph.nodes.slice();
+    if (selectedKind === 'all') return base;
+    return base.filter(function (n) { return n.kind === selectedKind; });
   }
   function expand(id) {
     if (!expanded[id]) expanded[id] = true;
@@ -99,9 +102,10 @@
         // 提示放最底部：放中间会被内圈节点的标签压住。
         '<text class="graph-hint" x="' + cx + '" y="' + (h - 26) + '" text-anchor="middle">选一个项目或知识条目，看它的真实关联</text></svg>';
       bindNodes();
+      var linkedCount = graph.nodes.filter(function (n) { return connected(n).length > 0; }).length;
       $('graphLimit').textContent = '从 ' + list.length + ' 个项目/知识入口开始 · 其中 ' + pairs +
-        ' 组之间有显式双链 · 全库 ' + graph.nodes.length + ' 个节点、' + graph.links.length +
-        ' 条真实关联，点开一个再看它的邻居';
+        ' 组之间有显式双链 · 全库 ' + graph.nodes.length + ' 节点中 ' + linkedCount +
+        ' 个有真实关联（' + graph.links.length + ' 条边），其余 ' + (graph.nodes.length - linkedCount) + ' 个孤立节点已默认折叠';
       return;
     }
 
